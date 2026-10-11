@@ -1,2 +1,11 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normalise line endings so Windows and Mac/Linux don't fight over every file
+* text=auto eol=lf
+
+# Binary files: never touch or diff them as text
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+
+# Lockfile: keep it out of diffs and merge it by hand if needed
+package-lock.json -diff linguist-generated=true
