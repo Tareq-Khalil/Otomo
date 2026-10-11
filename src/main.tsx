@@ -4,6 +4,7 @@ import { MotionConfig } from 'motion/react'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import './index.css'
+import './lib/install'
 
 registerSW({ immediate: true })
 

@@ -10,6 +10,7 @@ import { Tasks } from '@/views/Tasks'
 import { Study } from '@/views/Study'
 import { Settings } from '@/views/Settings'
 import { Onboarding } from '@/views/Onboarding'
+import { InstallBanner } from '@/components/InstallBanner'
 
 const TABS = [
   { id: 'home', label: 'Home', Icon: HomeIcon },
@@ -78,6 +79,7 @@ export default function App() {
           </LayoutGroup>
         </nav>
         {!onboarded && <Onboarding />}
+        {onboarded && <InstallBanner />}
       </div>
     </AppCtx.Provider>
   )
