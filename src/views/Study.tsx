@@ -12,9 +12,18 @@ interface St { run: Run | null; log: Session[]; cyc: number; subj: string }
 const init: St = { run: null, log: [], cyc: 0, subj: 'General' }
 
 /* DEMO ONLY — these are placeholders, not real students. A live board needs a backend that verifies sessions server-side. */
-const DEMO = [['Lelouch', 'Code Geass', 1850], ['Mikasa', 'Attack on Titan', 1625], ['Levi', 'Attack on Titan', 1450], ['Rimuru', 'Slime Isekai', 1300], ['Gojo', 'Jujutsu Kaisen', 1125],
-  ['Violet', 'Evergarden', 975], ['Edward', 'Fullmetal Alchemist', 825], ['Zoro', 'One Piece', 650], ['Anya', 'Spy x Family', 475], ['Killua', 'Hunter x Hunter', 300]] as const
-
+const DEMO = [
+  ['tls123', 'Section 20', 1850],
+  ['-', 'Section 04', 1625],
+  ['-', 'Section 19', 1450],
+  ['-', 'Section 08', 1300],
+  ['-', 'Section 21', 1125],
+  ['-', 'Section 03', 975],
+  ['-', 'Section 15', 825],
+  ['-', 'Section 24', 650],
+  ['-', 'Section 06', 475],
+  ['-', 'Section 11', 300],
+] as const
 const fmt = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''}` : `${m} min`)
 const clk = (ms: number) => { const s = Math.ceil(ms / 1000); return `${p2(Math.floor(s / 60))}:${p2(s % 60)}` }
 
