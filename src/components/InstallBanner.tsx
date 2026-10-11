@@ -26,7 +26,7 @@ export function InstallBanner() {
             <button onClick={go} className="flex min-w-0 flex-1 items-center gap-3 text-left">
               <Download size={20} className="shrink-0 text-accent" />
               <span className="min-w-0">
-                <b className="block text-[15px]">Install Uni Hub</b>
+                <b className="block text-[15px]">Install Otomo</b>
                 <span className="block text-xs opacity-60">Add it to your home screen</span>
               </span>
             </button>
@@ -35,7 +35,7 @@ export function InstallBanner() {
         )}
       </AnimatePresence>
 
-      <Sheet open={guide} onOpenChange={setGuide} title="Install Uni Hub">
+      <Sheet open={guide} onOpenChange={setGuide} title="Install Otomo">
         <ol className="list-decimal space-y-2 pl-5 text-[15px]">
           {isInApp ? (
             <>
