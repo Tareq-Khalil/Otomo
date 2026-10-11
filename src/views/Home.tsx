@@ -7,22 +7,40 @@ import { useApp, useNow } from '@/lib/store'
 import { clock, dur, mins } from '@/lib/time'
 import type { View } from '@/App'
 
-const greet = (h: number) => (h < 5 ? 'Hello' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening')
+// [romaji, English]: the heading uses the romaji, the small line above it keeps the English
+const greet = (h: number): [string, string] =>
+  h < 5 ? ['Konbanwa', 'Good evening']
+  : h < 12 ? ['Ohayō', 'Good morning']
+  : h < 18 ? ['Konnichiwa', 'Good afternoon']
+  : ['Konbanwa', 'Good evening']
+
+/** a Japanese word in the accent colour, always followed by its English meaning */
+const Jp = ({ r, en }: { r: string; en: string }) => (
+  <>
+    <span className="text-accent">{r}</span> · {en}
+  </>
+)
 
 export function Home({ go }: { go: (v: View) => void }) {
   const { s, data } = useApp()
   const n = useNow(30_000), nm = n.getHours() * 60 + n.getMinutes()
   const nx = nextClass(s, data, n), today = eventsOn(s, data, n)
   const open = s.tasks.filter(t => !t.done).length
+  const [hello, helloEn] = greet(n.getHours())
   let marked = false
 
   return (
     <>
-      <Head kicker={n.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} title={`${greet(n.getHours())}, ${s.name}.`} />
+      <Head
+        kicker={`${helloEn} · ${n.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+        title={`${hello}, ${s.name}.`}
+      />
 
       <motion.button onClick={() => go('schedule')} whileTap={{ scale: .98 }} className="relative mb-6 block w-full overflow-hidden rounded-xl bg-ink p-5 text-left text-bg">
         <div className="flex items-center justify-between">
-          <span className="label !text-bg/60">{nx ? (nx.now ? 'Happening now' : 'Up next') : 'Nothing scheduled'}</span>
+          <span className="label !text-bg/60">
+            {nx ? (nx.now ? <Jp r="Ima" en="Happening now" /> : <Jp r="Tsugi" en="Up next" />) : 'Nothing scheduled'}
+          </span>
           <ArrowUpRight size={18} />
         </div>
         {nx ? (
@@ -32,7 +50,13 @@ export function Home({ go }: { go: (v: View) => void }) {
               {[nx.e.title, `${clock(nx.e.start)} – ${clock(nx.e.end)}`, nx.e.room].filter(Boolean).join(' · ')}
             </p>
             <p className="mt-4 font-mono text-sm text-accent">
-              {nx.now ? `ends in ${dur(mins(nx.e.end) - nm)}` : nx.i === 0 ? `in ${dur(mins(nx.e.start) - nm)}` : nx.i === 1 ? 'tomorrow' : nx.d.toLocaleDateString('en-GB', { weekday: 'long' })}
+              {nx.now
+                ? `ends in ${dur(mins(nx.e.end) - nm)}`
+                : nx.i === 0
+                  ? `in ${dur(mins(nx.e.start) - nm)}`
+                  : nx.i === 1
+                    ? 'Ashita · tomorrow'
+                    : nx.d.toLocaleDateString('en-GB', { weekday: 'long' })}
             </p>
             {nx.now && (
               <div className="absolute inset-x-0 bottom-0 h-1 bg-bg/15">
@@ -40,26 +64,33 @@ export function Home({ go }: { go: (v: View) => void }) {
               </div>
             )}
           </>
-        ) : <h2 className="mt-3 font-display text-3xl italic">Enjoy the break.</h2>}
+        ) : (
+          <>
+            <h2 className="mt-3 font-display text-3xl italic">Yasumi.</h2>
+            <p className="label mt-2 !text-bg/70">Enjoy the break</p>
+          </>
+        )}
       </motion.button>
 
       <div className="mb-8 grid grid-cols-2 gap-3">
         <button onClick={() => go('tasks')} className="rounded-xl border border-line p-4 text-left">
           <span className="font-display text-4xl font-light">{open}</span>
-          <p className="label mt-1">open tasks</p>
+          <p className="label mt-1"><Jp r="Yarukoto" en="open tasks" /></p>
         </button>
         <button onClick={() => go('study')} className="rounded-xl border border-line p-4 text-left">
           <span className="font-display text-4xl font-light italic">25′</span>
-          <p className="label mt-1">start a focus round</p>
+          <p className="label mt-1"><Jp r="Shūchū" en="start a focus round" /></p>
         </button>
       </div>
 
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="font-display text-2xl italic">Today</h2>
+        <h2 className="font-display text-2xl italic">
+          Kyō <span className="label not-italic">Today</span>
+        </h2>
         <span className="label">{today.length ? `${today.length} ${today.length > 1 ? 'classes' : 'class'}` : ''}</span>
       </div>
       <div className="space-y-3">
-        {today.length === 0 && <p className="label py-6">No classes today.</p>}
+        {today.length === 0 && <p className="label py-6"><Jp r="Jugyō nashi" en="No classes today" /></p>}
         {today.map((e, i) => {
           const st = nm >= mins(e.end) ? 'done' : nm >= mins(e.start) ? 'now' : !marked ? (marked = true, 'next') : ''
           return <Ticket key={e.course + e.start} e={e} state={st} i={i} onClick={() => go('schedule')} />
