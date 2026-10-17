@@ -9,8 +9,10 @@ import { eventsOn, info, type Row } from '@/lib/schedule'
 import { uid, useApp } from '@/lib/store'
 import { addDays, clock, iso, mins, weekStart } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { DayTasks } from '@/components/DayTasks'
+import type { View } from '@/App'
 
-export function Schedule() {
+export function Schedule({ go }: { go: (v: View) => void }) {
   const { s, set, data } = useApp()
   const [sel, setSel] = useState(() => new Date())
   const [adding, setAdding] = useState(false)
@@ -20,7 +22,7 @@ export function Schedule() {
 
   return (
     <>
-      <Head kicker={sel.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} title="This week." />
+      <Head kicker={sel.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })} title="This week." jp="今週" />
       <div className="mb-5 flex items-center gap-1">
         <Button variant="ghost" size="icon" aria-label="Previous week" onClick={() => setSel(addDays(sel, -7))}><ChevronLeft size={18} /></Button>
         <div className="grid flex-1 grid-cols-7 gap-1">
@@ -42,9 +44,11 @@ export function Schedule() {
         <p className="label">{evs.length ? `${evs.length} ${evs.length > 1 ? 'classes' : 'class'} · ${clock(evs[0].start)} – ${clock(evs.reduce((a, e) => (mins(e.end) > mins(a) ? e.end : a), evs[0].end))}` : 'No classes'}</p>
         <Button variant="line" size="sm" onClick={() => setAdding(true)}><Plus size={14} /> Event</Button>
       </div>
-      <div className="space-y-3">
+      <div className="grid gap-3 md:grid-cols-2">
         {evs.map((e, i) => <Ticket key={sel.toDateString() + e.course + e.start} e={e} i={i} onClick={() => setDetail(e)} />)}
       </div>
+
+      <DayTasks date={iso(sel)} go={go} />
 
       <AddEvent open={adding} onClose={() => setAdding(false)} date={iso(sel)} />
       <Sheet open={!!detail} onOpenChange={o => !o && setDetail(null)} title={detail ? (detail.own ? detail.course : info(data, detail.course).name) : ''}>

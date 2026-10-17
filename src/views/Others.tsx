@@ -19,7 +19,7 @@ export function Others() {
 
   return (
     <>
-      <Head kicker="Any group, any section" title="Their week." />
+      <Head kicker="Any group, any section" title="Their week." jp="みんなの週" />
       <div className="mb-5 grid grid-cols-2 gap-3">
         <label className="label">Group
           <select className={sel} value={g} onChange={e => { setG(+e.target.value); setSec(0) }}>{[1, 2, 3, 4, 5, 6, 7, 8].map(x => <option key={x} value={x}>Group {x}</option>)}</select>
@@ -48,7 +48,7 @@ export function Others() {
             return (
               <section key={d} className="mb-6">
                 <h2 className="mb-3 font-display text-2xl italic">{DOW[d]}</h2>
-                <div className="space-y-3">{ds.length ? ds.map((e, i) => <Ticket key={e.course + e.start} e={e} i={i} />) : <p className="label">Nothing scheduled.</p>}</div>
+                <div className="grid gap-3 md:grid-cols-2">{ds.length ? ds.map((e, i) => <Ticket key={e.course + e.start} e={e} i={i} />) : <p className="label">Nothing scheduled.</p>}</div>
               </section>
             )
           })}

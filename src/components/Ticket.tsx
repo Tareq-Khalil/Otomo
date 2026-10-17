@@ -26,7 +26,7 @@ export function Ticket({ e, state, onClick, i = 0 }: { e: Row; state?: 'now' | '
       <div className="min-w-0 flex-1 px-4 py-3">
         <div className="flex items-center gap-2">
           <b className="truncate text-[15px] leading-tight">{c.name}</b>
-          {state === 'now' && <span className="label rounded-sm bg-accent px-1.5 py-0.5 !text-white">Live</span>}
+          {state === 'now' && <span className="label rounded-sm bg-accent px-1.5 py-0.5 !text-white"><i className="live-dot" /> Live</span>}
           {state === 'next' && <span className="label rounded-sm border border-ink px-1.5 py-0.5 !text-ink">Next</span>}
         </div>
         <p className="label mt-1.5 truncate !normal-case !tracking-wide">

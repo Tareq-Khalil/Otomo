@@ -4,12 +4,12 @@
 @import '@fontsource-variable/hanken-grotesk/index.css';
 @import '@fontsource/jetbrains-mono/500.css';
 
-:root { --bg:#ece6d8; --surface:#f6f1e6; --ink:#17140f; --mute:#7a7364; --line:#cfc6b2; --accent:#e5202e; color-scheme: light; }
-[data-theme='dark'] { --bg:#0e0d0b; --surface:#18160f; --ink:#f1ead9; --mute:#8d8675; --line:#2c2920; --accent:#ff3b47; color-scheme: dark; }
+:root { --bg:#faf7f5; --surface:#ffffff; --ink:#0b0b0c; --mute:#6c6a6a; --line:#e6dfdb; --accent:#d90f20; --gold:#c4121f; --sakura:#e11d48; color-scheme: light; }
+[data-theme='dark'] { --bg:#0a0a0b; --surface:#141416; --ink:#f5f1ee; --mute:#9b9797; --line:#2b2a2c; --accent:#ef2b3c; --gold:#ff5566; --sakura:#ff4d6a; color-scheme: dark; }
 
 @theme inline {
   --color-bg: var(--bg); --color-surface: var(--surface); --color-ink: var(--ink);
-  --color-mute: var(--mute); --color-line: var(--line); --color-accent: var(--accent);
+  --color-mute: var(--mute); --color-line: var(--line); --color-accent: var(--accent); --color-gold: var(--gold); --color-sakura: var(--sakura);
   --font-display: 'Fraunces Variable', Georgia, serif;
   --font-sans: 'Hanken Grotesk Variable', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -17,20 +17,28 @@
 
 html, body, #root { height: 100%; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
-/* paper grain: a quiet texture so flat colour never feels like a template */
-body::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: .07; mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-[data-theme='dark'] body::before { mix-blend-mode: screen; opacity: .05; }
+/* seigaiha waves on the page itself (no overlay layer, so dialogs and taps are never affected) */
+body { --wave: color-mix(in srgb, var(--line) 55%, transparent); background-image: radial-gradient(circle at 94% -4%, color-mix(in srgb, var(--accent) 30%, transparent) 0 8.5rem, transparent 8.6rem), radial-gradient(circle at 50% 100%, transparent 0 36%, var(--wave) 37% 39%, transparent 40% 56%, var(--wave) 57% 59%, transparent 60%); background-size: auto, 48px 24px; background-attachment: fixed; }
 ::selection { background: var(--accent); color: #fff; }
 button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::-webkit-scrollbar { display: none; }
 
-/* ticket: a stub with punched notches, the one shape the whole app is built around */
-.ticket { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 6px 14px 14px 6px; }
+/* fuda: a charm-slip ticket with punched notches and a gold hairline */
+.ticket { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 10px 20px 20px 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 14%, transparent); }
 .ticket::before, .ticket::after { content: ''; position: absolute; left: 4.6rem; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); }
 .ticket::before { top: -8px; clip-path: inset(50% 0 0 0); }
 .ticket::after { bottom: -8px; clip-path: inset(0 0 50% 0); }
 .perf { background-image: linear-gradient(to bottom, var(--line) 50%, transparent 0); background-size: 1px 8px; width: 1px; }
 .label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.dock { background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 999px; padding: 2px; box-shadow: 0 10px 30px -10px rgb(0 0 0 / .5); }
+.seal { display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 6px; background: var(--accent); color: #fff; font-family: var(--font-display); font-size: 1.15rem; transform: rotate(-4deg); }
+
+.jp { font-family: 'Hiragino Sans','Yu Gothic','Noto Sans JP','Meiryo',system-ui,sans-serif; letter-spacing: .06em; color: var(--mute); text-transform: none; }
+/* anime motifs: screentone dots, rotating speed-lines, brush-stroke underline, on-air pulse */
+.tone { position: absolute; inset: 0; pointer-events: none; opacity: .4; background-image: radial-gradient(var(--sakura) 1px, transparent 1.5px); background-size: 7px 7px; -webkit-mask-image: linear-gradient(135deg, #000, transparent 55%); mask-image: linear-gradient(135deg, #000, transparent 55%); }
+.rays { position: absolute; inset: -80%; pointer-events: none; background: repeating-conic-gradient(color-mix(in srgb, var(--accent) 20%, transparent) 0 3deg, transparent 3deg 9deg); -webkit-mask-image: radial-gradient(circle, transparent 15%, #000 70%); mask-image: radial-gradient(circle, transparent 15%, #000 70%); animation: spin 50s linear infinite; }
+.brush { display: block; height: .4rem; width: 5.5rem; margin-top: .7rem; border-radius: 2px; transform: skewX(-24deg); background: linear-gradient(90deg, var(--accent), var(--sakura)); }
+.live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: .25; transform: scale(1.6); } }
+@media (prefers-reduced-motion: reduce) { .rays, .live-dot { animation: none; } }

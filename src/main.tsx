@@ -5,8 +5,14 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import './index.css'
 import './lib/install'
+import { markWaiting, setUpdater } from './lib/update'
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh: markWaiting,
+  onRegisteredSW: (_url, r) => { if (r) setInterval(() => r.update().catch(() => undefined), 3_600_000) }
+})
+setUpdater(() => updateSW(true))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

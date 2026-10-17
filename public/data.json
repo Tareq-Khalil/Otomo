@@ -338,7 +338,7 @@
    {"course": "Fundamentals of Communication", "title": "Tutorial", "day": 4, "start": "09:50", "end": "11:35", "room": "B8-F1-10", "staff": "Mr. Mohamed El-nomerossie"},
    {"course": "Chemistry (1)", "title": "Lecture", "day": 4, "start": "11:35", "end": "12:25", "room": "B8-G-41", "staff": "Dr. Naglaa"},
    {"course": "Mathematics (1)", "title": "Lecture", "day": 4, "start": "12:30", "end": "14:10", "room": "B8-G-41", "staff": "Prof. Waheed Zahra"},
-   {"course": "Japanese Language 1", "title": "Tutorial", "day": 4, "start": "14:15", "end": "15:55", "room": "B18-F1-10", "staff": ""}
+   {"course": "Japanese Language 1", "title": "Tutorial", "day": 4, "start": "14:15", "end": "15:55", "room": "B18-F1-10", "staff": "Kubo Arisa-sensei"}
   ],
   "21": [
    {"course": "Safety and Risk Management", "title": "Lecture", "day": 1, "start": "10:45", "end": "12:25", "room": "B9-Theater", "staff": "Dr. Ahmed Hamed"},

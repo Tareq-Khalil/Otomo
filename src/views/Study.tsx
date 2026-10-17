@@ -65,7 +65,8 @@ export function Study() {
 
   return (
     <>
-      <Head kicker="Pomodoro · 25 + 5" title="Focus." />
+      <Head kicker="Pomodoro · 25 + 5" title="Focus." jp="集中" />
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8"><div>
       <div className="mb-6 rounded-2xl border border-line bg-surface p-6 text-center">
         <p className="label">{run ? (run.left !== undefined ? 'Paused' : brk ? (run.kind === 'long' ? 'Long break' : 'Break') : 'Focusing') : 'Ready'}</p>
         <div className="relative mx-auto my-4 h-60 w-60">
@@ -88,6 +89,7 @@ export function Study() {
         </div>
       </div>
 
+      </div><div>
       <div className="mb-8 grid grid-cols-2 gap-3">
         {[['Today', fmt(today)], ['This week', fmt(week)]].map(([k, v]) => <div key={k} className="rounded-xl border border-line p-4"><b className="font-display text-3xl font-light">{v}</b><p className="label mt-1">{k}</p></div>)}
       </div>
@@ -96,13 +98,14 @@ export function Study() {
       <p className="label mb-3 mt-1">Demo board · placeholder names, not real students</p>
       <ol className="space-y-2">
         {board.map((r, i) => (
-          <li key={r.n} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${r.me ? 'border-accent' : 'border-line'}`}>
+          <li key={`${r.from}-${r.n}`} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${r.me ? 'border-accent' : 'border-line'}`}>
             <span className="w-6 font-display text-xl italic">{i + 1}</span>
             <div className="min-w-0 flex-1"><b className="block truncate text-[15px]">{r.n}{r.me && ' (you)'}</b><span className="label">{r.from}</span></div>
             <span className="font-mono text-sm">{fmt(r.m)}</span>
           </li>
         ))}
       </ol>
+      </div></div>
     </>
   )
 }

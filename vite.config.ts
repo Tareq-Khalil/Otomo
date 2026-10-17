@@ -10,12 +10,13 @@ export default defineConfig({
     react(),
     tailwind(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icons/*.png'],
       manifest: {
-        id: './', name: 'E-JUST Otomo', short_name: 'Otomo', description: 'Schedule, tasks and focus rooms',
+        id: './', name: 'Otomo — E-JUST schedule & focus', short_name: 'Otomo', description: 'Timetable, tasks and focus timer for E-JUST students', lang: 'en', categories: ['education','productivity'],
+        shortcuts: [{ name: 'Tasks', url: './#tasks' }, { name: 'Focus', url: './#study' }, { name: 'Week', url: './#schedule' }],
         start_url: './', scope: './', display: 'standalone', orientation: 'portrait',
-        background_color: '#0e0d0b', theme_color: '#0e0d0b',
+        background_color: '#0a0a0b', theme_color: '#0a0a0b',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
