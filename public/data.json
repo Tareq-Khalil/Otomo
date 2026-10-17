@@ -92,7 +92,7 @@
    {"course": "Mathematics (1)", "title": "Lecture", "day": 2, "start": "12:30", "end": "14:10", "room": "B8-G-41", "staff": "Prof. Waheed Zahra and Prof. Ahmed Elsaid"},
    {"course": "Mechanics", "title": "Lecture", "day": 2, "start": "14:15", "end": "15:55", "room": "B8-G-41", "staff": "Dr. Ahmed Askr"},
    {"course": "Physics Lab (1) / Chemistry Lab (1)", "title": "Lab", "day": 3, "start": "09:00", "end": "12:25", "room": "", "staff": ""},
-   {"course": "Japanese Language 1", "title": "Tutorial", "day": 3, "start": "12:30", "end": "14:10", "room": "B18-F1-10", "staff": ""},
+   {"course": "Japanese Language 1", "title": "Tutorial", "day": 3, "start": "12:30", "end": "14:10", "room": "B18-F1-10", "staff": "Yukari Hirano/Safi-sensei"},
    {"course": "Chemistry (1)", "title": "Lecture", "day": 3, "start": "14:15", "end": "15:05", "room": "B8-F1-06", "staff": "Dr. Naglaa"}
   ],
   "6": [
