@@ -72,7 +72,7 @@ export function Schedule({ go }: { go: (v: View) => void }) {
 function AddEvent({ open, onClose, date }: { open: boolean; onClose: () => void; date: string }) {
   const { s, set } = useApp()
   const [f, setF] = useState({ course: '', date, start: '14:00', end: '15:00' })
-  const bad = !f.course.trim() || mins(f.end) <= mins(f.start) || mins(f.start) < 480 || mins(f.end) > 1320
+  const bad = !f.course.trim() || mins(f.end) <= mins(f.start)
   const field = 'mt-1 h-11 w-full rounded-md border border-line bg-bg px-3 text-base'
   return (
     <Sheet open={open} onOpenChange={o => { if (o) setF(x => ({ ...x, date })); else onClose() }} title="New event">
