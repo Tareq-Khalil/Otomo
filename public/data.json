@@ -204,7 +204,7 @@
    {"course": "Physics (1)", "title": "Tutorial", "day": 3, "start": "09:00", "end": "10:40", "room": "B8-F1-11", "staff": ""},
    {"course": "Chemistry (1)", "title": "Lecture", "day": 3, "start": "10:45", "end": "11:35", "room": "B8-G-41", "staff": "Dr. Naglaa"},
    {"course": "Physics Lab (1) / Chemistry Lab (1)", "title": "Lab", "day": 3, "start": "12:30", "end": "15:55", "room": "", "staff": ""},
-   {"course": "Japanese Language 1", "title": "Tutorial", "day": 4, "start": "09:00", "end": "10:40", "room": "B18-F1-13", "staff": "Ayman-sensei},
+   {"course": "Japanese Language 1", "title": "Tutorial", "day": 4, "start": "09:00", "end": "10:40", "room": "B18-F1-13", "staff": "Ayman-sensei"},
    {"course": "Mathematics (1)", "title": "Lecture", "day": 4, "start": "10:45", "end": "12:25", "room": "B8-F1-06", "staff": "Prof. Waheed Zahra and Prof. Ahmed Elsaid"},
    {"course": "Engineering Drawing", "title": "Lecture", "day": 4, "start": "12:30", "end": "13:20", "room": "Red Hall", "staff": "Prof. Mohamed Nassef and Dr. Ibrahim Maher"},
    {"course": "Engineering Drawing", "title": "Lab", "day": 4, "start": "13:20", "end": "15:55", "room": "TBD", "staff": "Prof. Mohamed Nassef and Dr. Ibrahim Maher"}
