@@ -6,7 +6,6 @@ import { useNow } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import type { View } from '@/App'
 
-/** today's missions: overdue first, then anything due or planned for today */
 export function Missions({ go }: { go: (v: View) => void }) {
   const { tasks, ready } = useTasks()
   const now = useNow(60_000), today = todayStr(now)

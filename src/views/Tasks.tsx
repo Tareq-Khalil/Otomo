@@ -24,7 +24,7 @@ export function Tasks() {
   const [undo, setUndo] = useState<string | null>(null)
   const now = new Date(), today = todayStr(now)
 
-  useEffect(() => { // opened from a dashboard mission
+  useEffect(() => { 
     if (!ready || !hint.open) return
     const t = tasks.find(x => x.id === hint.open); hint.open = null
     if (t) setSheet({ task: t })

@@ -32,7 +32,6 @@ export function Study() {
   const [st, setSt] = usePersisted<St>('uh:study', init)
   const now = useNow(1000), t = now.getTime(), { run } = st
 
-  // settle finished rounds from the saved END time, so it stays exact when the phone sleeps or the app is closed
   useEffect(() => {
     setSt(o => {
       let { run: r, log, cyc } = o, ch = false

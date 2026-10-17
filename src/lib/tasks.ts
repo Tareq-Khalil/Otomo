@@ -5,17 +5,15 @@ import { fieldsOf, type FieldKey, type Fields, type Priority, type Status } from
 export type { Fields, Priority, Status }
 export interface TaskRec extends Fields {
   id: string
-  owner: string                       // 'local' until the device is signed in, then the account's user id
+  owner: string                       
   createdAt: number; updatedAt: number
-  serverVersion: number | null        // version of the server row this copy is based on (null = never uploaded)
-  base: Fields | null                 // last server copy seen, used for three-way merges
+  serverVersion: number | null        
+  base: Fields | null                 
   conflict: null | { fields: FieldKey[]; server: Fields; version: number }
 }
 export interface Op { opId: string; taskId: string; owner: string; type: 'upsert'; createdAt: number; attempts: number; nextAt: number; status: 'pending' | 'failed' | 'conflict'; error?: string }
 
-// ---- plumbing -------------------------------------------------------------------------------
 let q: Promise<unknown> = Promise.resolve()
-/** every write to tasks/outbox is serialised so a sync step can never interleave with a user edit */
 export const serial = <T>(f: () => Promise<T>): Promise<T> => { const r = q.then(f, f); q = r.catch(() => undefined); return r }
 const ls = new Set<() => void>()
 export const notify = () => ls.forEach(l => l())
@@ -31,7 +29,6 @@ export const getTask = (id: string) => run<TaskRec | undefined>(['tasks'], 'read
 export const listOps = (o: string) => run<Op[]>(['outbox'], 'readonly', t => t.objectStore('outbox').index('owner').getAll(o))
 export const newOp = (r: TaskRec): Op => ({ opId: crypto.randomUUID(), taskId: r.id, owner: r.owner, type: 'upsert', createdAt: Date.now(), attempts: 0, nextAt: 0, status: 'pending' })
 
-/** persist a task and (if it belongs to an account) queue its upload, atomically. Caller must hold `serial`. */
 async function commit(rec: TaskRec) {
   rec.updatedAt = Date.now()
   const queue = rec.owner !== 'local'
@@ -43,7 +40,6 @@ async function commit(rec: TaskRec) {
   notify(); hooks.write()
 }
 
-// ---- public API ---------------------------------------------------------------------------------
 export type TaskInput = Partial<Fields> & { title: string }
 export const createTask = (i: TaskInput) => serial(async () => {
   const now = Date.now(), status = i.status ?? 'todo'
@@ -67,7 +63,6 @@ async function patchLocked(id: string, p: Partial<Fields>) {
 }
 export const updateTask = (id: string, p: Partial<Fields>) => serial(() => patchLocked(id, p))
 export const toggleTask = (id: string) => serial(async () => { const r = await getTask(id); if (r) await patchLocked(id, { status: r.status === 'done' ? 'todo' : 'done' }) })
-/** deleting is a soft delete so other devices learn about it; restore undoes it */
 export const removeTask = (id: string) => updateTask(id, { deletedAt: Date.now() })
 export const restoreTask = (id: string) => updateTask(id, { deletedAt: null })
 export const removeAllTasks = () => serial(async () => { for (const t of await listTasks()) if (!t.deletedAt) await patchLocked(t.id, { deletedAt: Date.now() }) })
@@ -87,7 +82,6 @@ export const resolveConflict = (id: string, pick: 'mine' | 'theirs') => serial(a
   notify(); hooks.write()
 })
 
-/** tasks made while signed out can be adopted by the account that signs in */
 export const countLocal = async () => (await listTasks('local')).filter(t => !t.deletedAt).length
 export const claimLocal = (uid: string) => serial(async () => {
   for (const t of await listTasks('local')) {
@@ -96,7 +90,6 @@ export const claimLocal = (uid: string) => serial(async () => {
   }
 })
 
-/** restore from a backup file: skips ids that already exist, so repeating it never duplicates */
 export const importTasks = (arr: unknown[]) => serial(async () => {
   for (const x of arr) {
     const r = x as Partial<TaskRec>
@@ -107,7 +100,6 @@ export const importTasks = (arr: unknown[]) => serial(async () => {
 })
 const blankFields: Fields = { title: '', notes: '', priority: 'normal', category: null, status: 'todo', completedAt: null, dueDate: null, dueTime: null, startDate: null, startTime: null, estMin: null, remindMin: null, deletedAt: null }
 
-/** one-time move of the old localStorage list into IndexedDB (same ids, so repeating it cannot duplicate) */
 export async function migrateLegacy() {
   if (await getMeta<boolean>('legacyMigrated')) return
   let legacy: unknown[] = []
@@ -126,12 +118,10 @@ export async function migrateLegacy() {
       } satisfies TaskRec))
     }
   })
-  await setMeta('legacyMigrated', true)   // the old list stays in localStorage untouched as a safety copy
+  await setMeta('legacyMigrated', true)   
 }
 
-// ---- reading helpers --------------------------------------------------------------------------
 export const todayStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-/** deadlines are local wall-clock values (no timezone): a date alone means end of that day */
 export function dueAt(t: Pick<Fields, 'dueDate' | 'dueTime'>): Date | null {
   if (!t.dueDate) return null
   const [y, m, d] = t.dueDate.split('-').map(Number)
@@ -141,7 +131,7 @@ export function dueAt(t: Pick<Fields, 'dueDate' | 'dueTime'>): Date | null {
 export const isOverdue = (t: Fields, now = new Date()) => t.status !== 'done' && !t.deletedAt && !!dueAt(t) && dueAt(t)! < now
 export const fmtDay = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) }
 export const PRIO_RANK: Record<Priority, number> = { low: 0, normal: 1, high: 2, urgent: 3 }
-export const hint = { open: null as string | null }   // set by the dashboard to open a task when the Tasks page mounts
+export const hint = { open: null as string | null }   
 
 export function useTasks() {
   const [tasks, setTasks] = useState<TaskRec[]>([])

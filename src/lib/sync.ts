@@ -7,10 +7,9 @@ const URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 export const configured = !!(URL && KEY)
 
-class NetError extends Error {}     // offline, timeout, 5xx, 429: try again later
-class AuthError extends Error {}    // session missing/expired/revoked: pause until signed in again
+class NetError extends Error {}     
+class AuthError extends Error {}  
 
-// ---- status the UI shows ---------------------------------------------------------------------------
 export interface SyncState {
   configured: boolean; signedIn: boolean; email: string | null
   phase: 'local' | 'offline' | 'syncing' | 'synced' | 'issue' | 'auth'
@@ -32,7 +31,6 @@ async function refreshCounts() {
   })
 }
 
-// ---- auth (Supabase GoTrue over fetch; only tokens are stored, never the password) ------------------
 interface Session { access: string; refresh: string; expiresAt: number; uid: string; email: string }
 let session: Session | null = null
 const toSession = (j: { access_token: string; refresh_token: string; expires_in?: number; user: { id: string; email?: string } }): Session =>
@@ -50,7 +48,6 @@ async function begin(s: Session) {
   await refreshCounts()
   kick(0)
 }
-/** returns an error message, or null on success */
 export async function signIn(email: string, password: string): Promise<string | null> {
   if (!configured) return 'Cloud sync is not set up for this build.'
   try {
@@ -70,7 +67,6 @@ export async function signUp(email: string, password: string): Promise<string | 
     return 'Account created. Confirm it from the email we sent, then sign in.'
   } catch { return 'No connection. Creating an account needs the internet.' }
 }
-/** returns false if the user backed out. Unsynced work stays on this device under the account and never uploads under another one. */
 export async function signOut(): Promise<boolean> {
   const n = st.pending + st.failed + st.conflicts
   if (n > 0 && !confirm(`${n} change${n > 1 ? 's' : ''} haven't reached the server yet. They stay on this device but won't upload until you sign in again to the same account. Sign out anyway?`)) return false
@@ -95,7 +91,6 @@ async function token(): Promise<string> {
   return s.access
 }
 
-// ---- server rows <-> local fields ---------------------------------------------------------------------
 interface Row { id: string; version: number; title: string; notes: string; priority: Fields['priority']; category: string | null; status: Fields['status']; completed_at: string | null; due_date: string | null; due_time: string | null; start_date: string | null; start_time: string | null; est_min: number | null; remind_min: number | null; created_at: string; updated_at: string; deleted_at: string | null }
 const ms = (s: string | null) => (s ? Date.parse(s) : null)
 const hm = (s: string | null) => (s ? s.slice(0, 5) : null)
@@ -117,11 +112,9 @@ const fetchRow = async (tok: string, id: string): Promise<Row | null> => {
   return r.ok ? ((await r.json()) as Row[])[0] ?? null : null
 }
 
-// ---- push ------------------------------------------------------------------------------------------------
 const setOp = (op: Op, p: Partial<Op>) => run(['outbox'], 'readwrite', t => t.objectStore('outbox').put({ ...op, ...p }))
 const drop = (id: string) => run(['outbox'], 'readwrite', t => t.objectStore('outbox').delete(id))
 
-/** the server accepted our version: record it as the new base; keep the op only if the user edited again while it was in flight */
 const ack = (sent: TaskRec, row: Row) => serial(async () => {
   const cur = await getTask(sent.id)
   if (!cur) return
@@ -131,7 +124,6 @@ const ack = (sent: TaskRec, row: Row) => serial(async () => {
   notify()
 })
 
-/** the server copy changed since our base: merge field by field, or park the task as a conflict */
 const reconcile = (sent: TaskRec, row: Row, op: Op) => serial(async (): Promise<'retry' | 'done' | 'conflict'> => {
   const cur = await getTask(sent.id)
   if (!cur) return 'done'
@@ -154,27 +146,25 @@ async function pushOne(tok: string, op: Op, uid: string) {
     if (!t || t.owner !== uid) { await drop(op.taskId); return }
     let res: Response
     if (t.serverVersion === null) {
-      // create: ignore-duplicates makes a retried create harmless
       res = await rest(tok, 'tasks?on_conflict=id', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=representation', body: { id: t.id, owner_id: uid, created_at: iso(t.createdAt), ...toRow(t) } })
     } else {
-      // update: only succeeds if the server row is still at the version we based our edit on
       res = await rest(tok, `tasks?id=eq.${t.id}&version=eq.${t.serverVersion}`, { method: 'PATCH', prefer: 'return=representation', body: toRow(t) })
     }
     if (!res.ok) {
       const msg = ((await res.json().catch(() => ({}))) as { message?: string }).message ?? `Server said ${res.status}`
-      await setOp(op, { status: 'failed', error: msg }); return   // permanent rejection stays queued and visible
+      await setOp(op, { status: 'failed', error: msg }); return   
     }
     const rows = (await res.json()) as Row[]
     if (rows.length) { await ack(t, rows[0]); return }
     const server = await fetchRow(tok, t.id)
-    if (!server) {                                   // row vanished server-side: upload it again as a new one
+    if (!server) {                                   
       await serial(async () => { const c = await getTask(t.id); if (c) await run(['tasks'], 'readwrite', x => x.objectStore('tasks').put({ ...c, serverVersion: null, base: null })) })
       continue
     }
     const out = await reconcile(t, server, op)
     if (out !== 'retry') return
   }
-  throw new NetError()                                // kept changing under us: try again on the next cycle
+  throw new NetError()                                
 }
 
 async function push(tok: string, uid: string) {
@@ -192,7 +182,6 @@ async function push(tok: string, uid: string) {
   if (waiting) throw new NetError()
 }
 
-// ---- pull ------------------------------------------------------------------------------------------------
 async function pull(tok: string, uid: string) {
   const ck = `cursor:${uid}`
   let since = (await getMeta<string>(ck)) ?? '1970-01-01T00:00:00Z'
@@ -206,7 +195,7 @@ async function pull(tok: string, uid: string) {
         const cur = await getTask(row.id)
         if (cur && cur.owner !== uid) continue
         if (cur && cur.serverVersion !== null && row.version <= cur.serverVersion) continue
-        if (cur && queued.has(row.id)) continue          // our pending edit meets the newer row at push time (merge or conflict)
+        if (cur && queued.has(row.id)) continue          
         if (!cur && row.deleted_at) continue
         const f = fromRow(row)
         await run(['tasks'], 'readwrite', t => t.objectStore('tasks').put({ ...f, id: row.id, owner: uid, createdAt: Date.parse(row.created_at), updatedAt: Date.parse(row.updated_at), serverVersion: row.version, base: f, conflict: null } satisfies TaskRec))
@@ -219,7 +208,6 @@ async function pull(tok: string, uid: string) {
   notify()
 }
 
-// ---- scheduling ----------------------------------------------------------------------------------------------
 let running = false, again = false
 let timer: ReturnType<typeof setTimeout> | undefined
 export const kick = (delay = 800) => {
@@ -228,7 +216,6 @@ export const kick = (delay = 800) => {
 }
 export const syncNow = async () => {
   if (!session) return
-  // a manual retry gives failed operations another chance (conflicts still need a decision)
   for (const o of await listOps(session.uid)) if (o.status === 'failed') await setOp(o, { status: 'pending', attempts: 0, nextAt: 0, error: undefined })
   await refreshCounts(); kick(0)
 }
@@ -259,7 +246,7 @@ let started = false
 export async function startSync() {
   if (started) return
   started = true
-  try { await migrateLegacy() } catch { /* storage unavailable: the app still works from memory-less defaults */ }
+  try { await migrateLegacy() } catch {  }
   try { session = (await getMeta<Session>('session')) ?? null } catch { session = null }
   if (!configured) session = null
   setOwner(session?.uid ?? 'local')

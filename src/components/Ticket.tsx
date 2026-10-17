@@ -5,7 +5,6 @@ import { clock, dur, mins } from '@/lib/time'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
-/** one class, drawn as a ticket: time on the stub, details on the body, course colour as the spine */
 export function Ticket({ e, state, onClick, i = 0 }: { e: Row; state?: 'now' | 'next' | 'done' | ''; onClick?: () => void; i?: number }) {
   const { data } = useApp()
   const c = e.own ? { name: e.course, color: 'var(--accent)' } : info(data, e.course)

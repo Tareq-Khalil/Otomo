@@ -5,11 +5,10 @@ import { NOTES, VERSION } from '@/lib/version'
 
 const SEEN = 'uh:seen-version'
 const read = () => { try { return localStorage.getItem(SEEN) } catch { return VERSION } }
-// brand-new installs never see the announcement; people who already had Otomo see it once per version
 try {
   const s = JSON.parse(localStorage.getItem('uh:state') ?? 'null')
   if (!localStorage.getItem(SEEN) && !(s && s.name)) localStorage.setItem(SEEN, VERSION)
-} catch { /* storage blocked */ }
+} catch {  }
 
 export function WhatsNew() {
   const [open, setOpen] = useState(() => read() !== VERSION)

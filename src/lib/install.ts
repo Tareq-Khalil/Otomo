@@ -5,7 +5,6 @@ interface InstallEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-// the browser fires this once, early, so it is caught at module load rather than inside a component
 let deferred: InstallEvent | null = null
 const subs = new Set<() => void>()
 const notify = () => subs.forEach(f => f())
@@ -44,7 +43,7 @@ export function useInstall() {
       return r.outcome === 'accepted'
     },
     dismiss() {
-      try { localStorage.setItem(KEY, String(Date.now())) } catch { /* private mode */ }
+      try { localStorage.setItem(KEY, String(Date.now())) } catch {  }
       setHidden(true)
     }
   }

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { isOwnerReady, listTasks, type Fields } from './tasks'
 
-/** the moment a task is "at": its planned start if it has a start time, otherwise its deadline; never invented */
 export function targetOf(t: Pick<Fields, 'dueDate' | 'dueTime' | 'startDate' | 'startTime'>): Date | null {
   const p = t.startDate && t.startTime ? [t.startDate, t.startTime] : t.dueDate && t.dueTime ? [t.dueDate, t.dueTime] : null
   if (!p) return null
@@ -10,7 +9,7 @@ export function targetOf(t: Pick<Fields, 'dueDate' | 'dueTime' | 'startDate' | '
 }
 export interface Reminder { key: string; id: string; title: string; at: Date }
 const FIRED = 'uh:reminded'
-const STALE = 2 * 3600_000   // a reminder more than 2 h past its time is not worth showing when the app reopens
+const STALE = 2 * 3600_000   
 const load = (): string[] => { try { const a = JSON.parse(localStorage.getItem(FIRED) ?? '[]'); return Array.isArray(a) ? a : [] } catch { return [] } }
 
 async function notifyOS(title: string, body: string, tag: string) {
@@ -19,10 +18,9 @@ async function notifyOS(title: string, body: string, tag: string) {
     const reg = await navigator.serviceWorker?.getRegistration()
     if (reg) await reg.showNotification(title, { body, tag, icon: '/icons/icon-192.png' })
     else new Notification(title, { body, tag })
-  } catch { /* the in-app reminder still shows */ }
+  } catch {  }
 }
 
-/** checks every 20 s while Otomo is open; each reminder fires once (re-arms if the task's time or lead time changes) */
 export function useReminders() {
   const [items, setItems] = useState<Reminder[]>([])
   const fired = useRef<string[]>(load())
@@ -42,7 +40,7 @@ export function useReminders() {
       }
       if (!fresh.length || !on) return
       fired.current = fired.current.slice(-200)
-      try { localStorage.setItem(FIRED, JSON.stringify(fired.current)) } catch { /* private mode */ }
+      try { localStorage.setItem(FIRED, JSON.stringify(fired.current)) } catch { }
       setItems(o => [...o, ...fresh])
       for (const r of fresh) notifyOS('Otomo reminder', `${r.title} · ${r.at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`, r.key)
     }

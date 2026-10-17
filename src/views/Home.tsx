@@ -10,7 +10,6 @@ import { useApp, useNow } from '@/lib/store'
 import { clock, dur, mins } from '@/lib/time'
 import type { View } from '@/App'
 
-// [romaji, English, Japanese]: the heading uses the romaji, the small lines keep English and Japanese
 const greet = (h: number): [string, string, string] =>
   h < 5 ? ['Konbanwa', 'Good evening', 'こんばんは']
   : h < 12 ? ['Ohayō', 'Good morning', 'おはよう']
@@ -28,7 +27,6 @@ export function Home({ go }: { go: (v: View) => void }) {
   const pct = nx?.now ? (nm - mins(nx.e.start)) / (mins(nx.e.end) - mins(nx.e.start)) : 0
   let marked = false
 
-  // hero card tilts toward the pointer
   const mx = useMotionValue(0), my = useMotionValue(0)
   const rx = useSpring(useTransform(my, [-.5, .5], [5, -5]), { stiffness: 200, damping: 20 })
   const ry = useSpring(useTransform(mx, [-.5, .5], [-7, 7]), { stiffness: 200, damping: 20 })

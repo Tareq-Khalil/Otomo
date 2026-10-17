@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 
-/** drifting sakura petals on a canvas behind the app: no libraries, paused when the tab is hidden, off for reduced motion */
 export function Sakura() {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {

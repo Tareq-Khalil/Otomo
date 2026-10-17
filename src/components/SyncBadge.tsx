@@ -1,7 +1,6 @@
 import { syncNow, useSync } from '@/lib/sync'
 import { cn } from '@/lib/utils'
 
-/** small status line: says "Synced" only once the server has confirmed everything */
 export function SyncBadge({ className }: { className?: string }) {
   const s = useSync()
   const n = s.pending + s.failed + s.conflicts

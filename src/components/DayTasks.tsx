@@ -5,7 +5,6 @@ import type { View } from '@/App'
 
 const hm = (t: string, add: number) => { const [h, m] = t.split(':').map(Number), x = h * 60 + m + add; return `${String(Math.floor(x / 60) % 24).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}` }
 
-/** tasks on the Week timeline: "planned" (has a start date) and "due" (deadline that day) are kept apart; no times are made up */
 export function DayTasks({ date, go }: { date: string; go: (v: View) => void }) {
   const { tasks } = useTasks()
   const planned = tasks.filter(t => t.startDate === date).sort((a, b) => (a.startTime ?? '99').localeCompare(b.startTime ?? '99'))

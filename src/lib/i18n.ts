@@ -1,7 +1,13 @@
 import { useApp } from './store'
 import type { State } from './types'
+
 export type Lang = State['lang']
-export const LANGS: { id: Lang; label: string }[] = [{ id: 'en', label: 'English' }, { id: 'ja', label: '日本語' }, { id: 'ro', label: 'Rōmaji' }]
+export const LANGS: { id: Lang; label: string }[] = [
+  { id: 'en', label: 'English' },
+  { id: 'ja', label: '日本語' },
+  { id: 'ro', label: 'Rōmaji' }
+]
+
 // [en, ja, romaji]
 const D = {
   home: ['Home', 'ホーム', 'Hōmu'], week: ['Week', '週間', 'Shūkan'], others: ['Others', 'みんな', 'Minna'],
@@ -24,9 +30,18 @@ const D = {
   bad: ['That file is not an Otomo backup.', 'Otomoのバックアップではありません。', 'Otomo no bakkuappu dewa arimasen.'],
   load: ['Loading…', '読み込み中…', 'Yomikomi-chū…'], fail: ['Could not load the timetable. Check your connection.', '時間割を読み込めません。接続を確認してください。', 'Jikanwari o yomikomemasen. Setsuzoku o kakunin shite kudasai.']
 } as const
+
 export type K = keyof typeof D
 const IDX = { en: 0, ja: 1, ro: 2 } as const
-export const tr = (l: Lang, k: K, v: Record<string, string | number> = {}) =>
-  D[k][IDX[l]].replace(/\{(\w+)\}/g, (_, n) => String(v[n]))
-export function useT() { const { s } = useApp(); return (k: K, v?: Record<string, string | number>) => tr(s.lang, k, v) }
+
+export const tr = (l: Lang, k: K, v: Record<string, string | number> = {}) => {
+  const index = IDX[l as keyof typeof IDX] ?? 0
+  return D[k][index].replace(/\{(\w+)\}/g, (_, n) => String(v[n] ?? ''))
+}
+
+export function useT() { 
+  const { s } = useApp() 
+  return (k: K, v?: Record<string, string | number>) => tr(s.lang, k, v) 
+}
+
 export const dateLoc = (l: Lang) => (l === 'ja' ? 'ja-JP' : 'en-GB')

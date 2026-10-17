@@ -1,4 +1,3 @@
-/** thin IndexedDB wrapper: stores `tasks`, `outbox` (pending sync operations, one per task) and `meta` (session, cursors, flags) */
 const NAME = 'otomo'
 const VERSION = 1
 let opened: Promise<IDBDatabase> | null = null
@@ -7,7 +6,6 @@ export const db = (): Promise<IDBDatabase> =>
   (opened ??= new Promise((res, rej) => {
     if (typeof indexedDB === 'undefined') return rej(new Error('IndexedDB unavailable'))
     const r = indexedDB.open(NAME, VERSION)
-    // upgrades must only ever ADD stores/indexes so older data survives app updates
     r.onupgradeneeded = () => {
       const d = r.result
       if (!d.objectStoreNames.contains('tasks')) d.createObjectStore('tasks', { keyPath: 'id' }).createIndex('owner', 'owner')
@@ -18,7 +16,6 @@ export const db = (): Promise<IDBDatabase> =>
     r.onerror = () => { opened = null; rej(r.error) }
   }))
 
-/** run several requests in ONE transaction; resolves with the last request's result once the transaction has committed */
 export async function run<T = unknown>(stores: string[], mode: IDBTransactionMode, fn: (t: IDBTransaction) => IDBRequest | void): Promise<T> {
   const d = await db()
   return new Promise<T>((res, rej) => {

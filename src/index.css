@@ -34,7 +34,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .seal { display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 6px; background: var(--accent); color: #fff; font-family: var(--font-display); font-size: 1.15rem; transform: rotate(-4deg); }
 
 .jp { font-family: 'Hiragino Sans','Yu Gothic','Noto Sans JP','Meiryo',system-ui,sans-serif; letter-spacing: .06em; color: var(--mute); text-transform: none; }
-/* anime motifs: screentone dots, rotating speed-lines, brush-stroke underline, on-air pulse */
 .tone { position: absolute; inset: 0; pointer-events: none; opacity: .4; background-image: radial-gradient(var(--sakura) 1px, transparent 1.5px); background-size: 7px 7px; -webkit-mask-image: linear-gradient(135deg, #000, transparent 55%); mask-image: linear-gradient(135deg, #000, transparent 55%); }
 .rays { position: absolute; inset: -80%; pointer-events: none; background: repeating-conic-gradient(color-mix(in srgb, var(--accent) 20%, transparent) 0 3deg, transparent 3deg 9deg); -webkit-mask-image: radial-gradient(circle, transparent 15%, #000 70%); mask-image: radial-gradient(circle, transparent 15%, #000 70%); animation: spin 50s linear infinite; }
 .brush { display: block; height: .4rem; width: 5.5rem; margin-top: .7rem; border-radius: 2px; transform: skewX(-24deg); background: linear-gradient(90deg, var(--accent), var(--sakura)); }
