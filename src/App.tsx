@@ -28,22 +28,54 @@ const TABS = [
 ] as const
 export type View = (typeof TABS)[number]['id']
 
+
 function useData() {
   const [d, setD] = useState<Data | null>(() => {
-    try { const c = JSON.parse(localStorage.getItem('uh:data') ?? 'null'); return isData(c) ? c : null } catch { return null }
+    try {
+      const cached = JSON.parse(localStorage.getItem('uh:data') ?? 'null')
+      return isData(cached) ? cached : null
+    } catch {
+      return null
+    }
   })
   const [failed, setFailed] = useState(false)
-  const load = useCallback(() => {
-    fetch(`${import.meta.env.BASE_URL}data.json`, { cache: 'no-cache' })
-      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
-      .then(j => {
-        if (!isData(j)) throw new Error('bad data')
-        setD(j); setFailed(false); try { localStorage.setItem('uh:data', JSON.stringify(j)) } catch { /* full */ }
-      }).catch(() => setFailed(true))
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.BASE_URL}data.json`,
+        { cache: 'no-cache' }
+      )
+      if (!response.ok) {
+        throw new Error(`Timetable request failed: HTTP ${response.status}`)
+      }
+      const json: unknown = await response.json()
+      if (!isData(json)) {
+        throw new Error('The timetable response has an invalid structure')
+      }
+      setD(json)
+      setFailed(false)
+      try {
+        localStorage.setItem('uh:data', JSON.stringify(json))
+      } catch {
+      }
+    } catch (error) {
+      console.error('Could not refresh timetable:', error)
+      setFailed(true)
+    }
   }, [])
-  useEffect(() => { load(); addEventListener('online', load); return () => removeEventListener('online', load) }, [load])
+  useEffect(() => {
+    void load()
+    const handleOnline = () => {
+      void load()
+    }
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [load])
   return { d, failed }
 }
+
 
 export default function App() {
   const [s, setS] = usePersisted<State>('uh:state', blank)

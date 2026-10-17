@@ -26,7 +26,28 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png}'],
         // timetable data: network first so changes show up, saved copy when offline
-        runtimeCaching: [{ urlPattern: /\/data\.json$/, handler: 'NetworkFirst', options: { cacheName: 'uni-data', networkTimeoutSeconds: 4 } }]
+        
+runtimeCaching: [
+  {
+    urlPattern: ({ url }) =>
+      url.origin === self.location.origin &&
+      url.pathname.endsWith('/data.json'),
+    handler: 'NetworkFirst',
+    options: {
+      cacheName: 'uni-data-v2',
+      networkTimeoutSeconds: 10,
+      expiration: {
+        maxEntries: 1,
+        maxAgeSeconds: 7 * 24 * 60 * 60,
+        purgeOnQuotaError: true
+      },
+      cacheableResponse: {
+        statuses: [200]
+      }
+    }
+  }
+]
+
       }
     })
   ]
