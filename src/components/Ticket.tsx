@@ -68,16 +68,21 @@ export function Ticket({
           <p className="text-xs text-mute mt-0.5 italic">{e.subtitle}</p>
         )}
 
-        <div className="flex items-center gap-2 mt-1.5">
-          <p className="label truncate !normal-case !tracking-wide">
+        {/* CHANGED: Added flex-wrap and changed items-center to items-start */}
+        <div className="flex flex-wrap items-start gap-2 mt-1.5">
+          <p className="label truncate !normal-case !tracking-wide mt-0.5">
             {[e.title, dur(mins(e.end) - mins(e.start))].filter(Boolean).join(' · ')}
           </p>
           {e.room && (
             <span className={cn(
-              'label inline-flex items-center gap-1 rounded px-1.5 py-0.5 !normal-case !tracking-normal font-mono text-[10px]',
+              // CHANGED: Added max-w-full, items-start, whitespace-normal, and text-left
+              'label inline-flex max-w-full items-start gap-1 rounded px-1.5 py-0.5 !normal-case !tracking-normal font-mono text-[10px] text-left',
               e.isExam ? 'bg-gold/10 text-gold font-medium border border-gold/20' : 'bg-surface text-mute'
             )}>
-              <MapPin size={10} /> {e.room}
+              {/* CHANGED: Added shrink-0 and top margin so the pin aligns with wrapped text */}
+              <MapPin size={10} className="shrink-0 mt-[2px]" />
+              {/* CHANGED: Added line-clamp and break-words so the text wraps safely */}
+              <span className="line-clamp-2 whitespace-normal break-words">{e.room}</span>
             </span>
           )}
         </div>
