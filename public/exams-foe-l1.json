@@ -1,0 +1,100 @@
+{
+  "faculty": "foe",
+  "level": 1,
+  "term": "Fall 2026 Midterm",
+  "building": "18",
+  "defaultTime": { "start": "09:00", "end": "10:15" },
+  "midtermWeek": { "start": "2026-11-08", "end": "2026-11-13" },
+  "exams": [
+    {
+      "id": "mth-111-fall2026-mid",
+      "courseCode": "MTH-111",
+      "courseName": "Mathematics (1)",
+      "subtitle": "Calculus + Linear Algebra",
+      "date": "2026-11-08",
+      "instructor": "Prof. Waheed Zahra and Prof. Ahmed Elsaid",
+      "rooms": [
+        { "room": "G:08",  "from": "120230076", "to": "120260061" },
+        { "room": "G:09",  "from": "120260062", "to": "120260148" },
+        { "room": "F1:01", "from": "120260149", "to": "120260238" },
+        { "room": "F1:05", "from": "120260239", "to": "120260321" },
+        { "room": "F1:10", "from": "120260322", "to": "120260404" },
+        { "room": "F1:19", "from": "120260405", "to": "120260494" },
+        { "room": "F1:14", "from": "120260495", "to": "120260586" },
+        { "room": "G:13",  "from": "120260587", "to": "120260615" }
+      ]
+    },
+    {
+      "id": "phy-111-fall2026-mid",
+      "courseCode": "PHY-111",
+      "courseName": "Physics (1)",
+      "subtitle": null,
+      "date": "2026-11-09",
+      "instructor": "Dr. Sayed Soliman and Dr. Amr Hussein",
+      "rooms": [
+        { "room": "G:08",  "from": "120230040", "to": "120260025" },
+        { "room": "G:09",  "from": "120260026", "to": "120260109" },
+        { "room": "F1:01", "from": "120260110", "to": "120260200" },
+        { "room": "F1:05", "from": "120260201", "to": "120260285" },
+        { "room": "F1:10", "from": "120260286", "to": "120260372" },
+        { "room": "F1:19", "from": "120260373", "to": "120260449" },
+        { "room": "F1:14", "from": "120260450", "to": "120260547" },
+        { "room": "G:13",  "from": "120260548", "to": "120260615" }
+      ]
+    },
+    {
+      "id": "mtr-111-fall2026-mid",
+      "courseCode": "MTR-111",
+      "courseName": "Mechanics",
+      "subtitle": "Statics + Dynamics",
+      "date": "2026-11-10",
+      "instructor": "Dr. Ahmed Askr",
+      "rooms": [
+        { "room": "G:08",  "from": "120240069", "to": "120260089" },
+        { "room": "G:09",  "from": "120260090", "to": "120260195" },
+        { "room": "F1:01", "from": "120260197", "to": "120260295" },
+        { "room": "F1:05", "from": "120260296", "to": "120260384" },
+        { "room": "F1:10", "from": "120260385", "to": "120260466" },
+        { "room": "F1:19", "from": "120260467", "to": "120260580" },
+        { "room": "F1:14", "from": "120260582", "to": "120260615" }
+      ]
+    },
+    {
+      "id": "chm-111-fall2026-mid",
+      "courseCode": "CHM-111",
+      "courseName": "Chemistry (1)",
+      "subtitle": null,
+      "date": "2026-11-11",
+      "instructor": "Dr. Naglaa",
+      "rooms": [
+        { "room": "G:08",  "from": "120240146", "to": "120260068" },
+        { "room": "G:09",  "from": "120260069", "to": "120260156" },
+        { "room": "F1:01", "from": "120260157", "to": "120260245" },
+        { "room": "F1:05", "from": "120260247", "to": "120260328" },
+        { "room": "F1:10", "from": "120260329", "to": "120260411" },
+        { "room": "F1:19", "from": "120260412", "to": "120260504" },
+        { "room": "F1:14", "from": "120260505", "to": "120260595" },
+        { "room": "G:13",  "from": "120260597", "to": "120260615" }
+      ]
+    },
+    {
+      "id": "ime-111-fall2026-mid",
+      "courseCode": "IME-111",
+      "courseName": "Engineering Drawings",
+      "subtitle": null,
+      "date": "2026-11-12",
+      "instructor": "Dr. Mohamed Nassef and Dr. Ibrahim Maher",
+      "rooms": [
+        { "room": "G:08",  "from": "120230040", "to": "120260061" },
+        { "room": "G:09",  "from": "120260062", "to": "120260148" },
+        { "room": "F1:01", "from": "120260149", "to": "120260238" },
+        { "room": "F1:05", "from": "120260239", "to": "120260321" },
+        { "room": "F1:10", "from": "120260322", "to": "120260404" },
+        { "room": "F1:19", "from": "120260405", "to": "120260494" },
+        { "room": "F1:14", "from": "120260495", "to": "120260586" },
+        { "room": "G:13",  "from": "120260587", "to": "120260615" }
+      ]
+    }
+  ]
+}
+

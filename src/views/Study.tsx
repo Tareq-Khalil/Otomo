@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { motion } from 'motion/react'
 import { Head } from '@/components/Head'
 import { Button } from '@/components/ui/button'
+import { OtomoCharacter } from '@/components/OtomoCharacter'
 import { uid, useApp, useNow, usePersisted } from '@/lib/store'
 import type { Session } from '@/lib/types'
 import { iso, p2, weekStart } from '@/lib/time'
@@ -54,7 +55,8 @@ export function Study() {
   const wk = iso(weekStart(now))
   const week = st.log.filter(x => iso(weekStart(new Date(x.ts))) === wk).reduce((a, x) => a + x.m, 0)
   const today = st.log.filter(x => iso(new Date(x.ts)) === iso(now)).reduce((a, x) => a + x.m, 0)
-  const board = [...DEMO.map(([n, from, m]) => ({ n, from: from as string, m: m as number, me: false })), { n: s.name.split(' ')[0], from: 'you', m: week, me: true }].sort((a, b) => b.m - a.m)
+  const userTag = s.username ? `@${s.username}` : s.name ? `@${s.name.split(' ')[0]}` : '@you'
+  const board = [...DEMO.map(([n, from, m]) => ({ n, from: from as string, m: m as number, me: false })), { n: userTag, from: 'you', m: week, me: true }].sort((a, b) => b.m - a.m)
 
   const main = () => {
     if (!run) return setSt(o => ({ ...o, cyc: o.cyc >= CYCLE ? 0 : o.cyc, run: { kind: 'focus', dur: FOCUS, end: Date.now() + FOCUS, subj: o.subj } }))
@@ -66,7 +68,22 @@ export function Study() {
     <>
       <Head kicker="Pomodoro · 25 + 5" title="Focus." jp="集中" />
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8"><div>
-      <div className="mb-6 rounded-2xl border border-line bg-surface p-6 text-center">
+      <div className="mb-6 rounded-2xl border border-line bg-surface p-6 text-center relative overflow-hidden">
+        {/* Cute Mascot Study Companion */}
+        <div className="mb-2 flex justify-center">
+          <OtomoCharacter
+            mood={
+              !run
+                ? 'welcome'
+                : brk
+                ? 'resting'
+                : run.left !== undefined
+                ? 'happy'
+                : 'studying'
+            }
+            size="sm"
+          />
+        </div>
         <p className="label">{run ? (run.left !== undefined ? 'Paused' : brk ? (run.kind === 'long' ? 'Long break' : 'Break') : 'Focusing') : 'Ready'}</p>
         <div className="relative mx-auto my-4 h-60 w-60">
           <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden>

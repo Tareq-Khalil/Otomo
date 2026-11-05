@@ -40,4 +40,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 50% { opacity: .25; transform: scale(1.6); } }
-@media (prefers-reduced-motion: reduce) { .rays, .live-dot { animation: none; } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.anime-float { animation: float 3s ease-in-out infinite; }
+.manga-glow { box-shadow: 0 0 15px -3px var(--accent); }
+@media (prefers-reduced-motion: reduce) { .rays, .live-dot, .anime-float { animation: none; } }

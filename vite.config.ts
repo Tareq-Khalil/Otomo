@@ -45,6 +45,25 @@ runtimeCaching: [
         statuses: [200]
       }
     }
+  },
+  {
+    urlPattern: ({ url }) =>
+      url.origin === self.location.origin &&
+      url.pathname.includes('/exams-') &&
+      url.pathname.endsWith('.json'),
+    handler: 'NetworkFirst',
+    options: {
+      cacheName: 'uni-exams-v1',
+      networkTimeoutSeconds: 10,
+      expiration: {
+        maxEntries: 5,
+        maxAgeSeconds: 7 * 24 * 60 * 60,
+        purgeOnQuotaError: true
+      },
+      cacheableResponse: {
+        statuses: [200]
+      }
+    }
   }
 ]
 

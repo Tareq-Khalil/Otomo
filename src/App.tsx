@@ -12,7 +12,7 @@ import { Settings } from '@/views/Settings'
 import { Onboarding } from '@/views/Onboarding'
 import { InstallBanner } from '@/components/InstallBanner'
 import { Sakura } from '@/components/Sakura'
-import { startSync } from '@/lib/sync'
+import { startSync, useSync } from '@/lib/sync'
 import { useReminders } from '@/lib/reminders'
 import { ReminderToasts } from '@/components/ReminderToasts'
 import { UpdateBanner } from '@/components/UpdateBanner'
@@ -84,6 +84,34 @@ export default function App() {
   const set = (p: Partial<State>) => setS(o => ({ ...o, ...p }))
 
   useEffect(() => { startSync() }, [])
+  const sync = useSync()
+
+  // When cloud profile loads for registered users, sync any missing local profile fields
+  useEffect(() => {
+    if (sync.signedIn && sync.profile) {
+      setS(prev => {
+        const p = sync.profile!
+        const needsUpdate =
+          (!prev.name && p.name) ||
+          (!prev.username && p.username) ||
+          (!prev.code && p.code) ||
+          (!prev.faculty && p.faculty) ||
+          (!prev.level && p.level)
+        if (!needsUpdate) return prev
+        return {
+          ...prev,
+          name: prev.name || p.name || prev.name,
+          username: prev.username || p.username || prev.username,
+          faculty: prev.faculty || p.faculty || 'foe',
+          level: prev.level || p.level || 1,
+          code: prev.code || p.code || '',
+          group: prev.group || p.group_no || 1,
+          section: prev.section || p.section_no || 1
+        }
+      })
+    }
+  }, [sync.signedIn, sync.profile, setS])
+
   const rem = useReminders()
   useEffect(() => {
     document.documentElement.dataset.theme = s.theme
@@ -102,7 +130,13 @@ export default function App() {
         <div className="mx-auto flex h-full max-w-xl flex-col md:max-w-5xl">
           <main className="flex-1 overflow-y-auto px-5 pb-32 pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-10 md:pt-8">
             <AnimatePresence mode="wait">
-              <motion.div key={view} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: .22, ease: [.2, .8, .2, 1] }}>
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 14, scale: 0.985 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.99 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              >
                 {page}
               </motion.div>
             </AnimatePresence>

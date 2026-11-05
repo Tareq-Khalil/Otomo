@@ -10,7 +10,11 @@ export function usePersisted<T>(key: string, init: T): [T, Dispatch<SetStateActi
   return [v, setV]
 }
 
-export const blank: State = { name: '', group: 0, section: 0, theme: 'dark', lang: 'en', tasks: [], mine: [] }
+export const blank: State = {
+  name: '', username: '', group: 0, section: 0,
+  faculty: '', level: 0, code: '',
+  theme: 'dark', lang: 'en', tasks: [], mine: []
+}
 
 interface Ctx { s: State; set: (p: Partial<State>) => void; data: Data }
 export const AppCtx = createContext<Ctx>(null!)

@@ -1,7 +1,9 @@
-export const VERSION = '2.0.0'
+export const VERSION = '3.0.0'
 export const NOTES = [
-  'Your own tasks: add, edit, search, filter, set deadlines, priorities and reminders.',
-  'Works offline. Changes are saved on your device and sync when you are back online.',
-  'Today’s missions on Home, and planned tasks on your Week.',
-  'A new red-and-black look, with a light red-and-white mode.'
+  'Introducing Otomo-chan, your brand-new kawaii anime companion and the first version personal assistant!',
+  'FoE Level 1 Midterm examination schedule integrated directly into Week with Building 18 room allocation based on your student ID.',
+  'Hybrid account system: full offline Guest Mode by default, with optional cloud accounts for multi-device sync and backup.',
+  'New welcoming onboarding wizard featuring Otomo-chan.',
+  'Personal events now saved in local IndexedDB alongside tasks with automatic cloud synchronization.',
+  'Scalable multi-faculty & level architecture with smooth profile migration for existing users.'
 ]

@@ -5,7 +5,11 @@ import { Ticket } from '@/components/Ticket'
 import { Tri } from '@/components/Tri'
 import { eventsOn, info, nextClass } from '@/lib/schedule'
 import { Missions } from '@/components/Missions'
+import { ProfileCompletion } from '@/components/ProfileCompletion'
+import { AnimeCompanion } from '@/components/AnimeCompanion'
 import { useTasks } from '@/lib/tasks'
+import { useEvents } from '@/lib/events'
+import { useExams } from '@/lib/exams'
 import { useApp, useNow } from '@/lib/store'
 import { clock, dur, mins } from '@/lib/time'
 import type { View } from '@/App'
@@ -20,8 +24,12 @@ const list = { show: { transition: { staggerChildren: .06 } } }
 
 export function Home({ go }: { go: (v: View) => void }) {
   const { s, data } = useApp()
+  const { events: dbEvents } = useEvents()
+  const { examData } = useExams(s.faculty || 'foe', s.level || 1)
+
   const n = useNow(30_000), nm = n.getHours() * 60 + n.getMinutes()
-  const nx = nextClass(s, data, n), today = eventsOn(s, data, n)
+  const nx = nextClass(s, data, n, dbEvents, examData)
+  const today = eventsOn(s, data, n, dbEvents, examData)
   const open = useTasks().tasks.filter(t => t.status !== 'done').length
   const [hello, helloEn, helloJp] = greet(n.getHours())
   const pct = nx?.now ? (nm - mins(nx.e.start)) / (mins(nx.e.end) - mins(nx.e.start)) : 0
@@ -31,12 +39,16 @@ export function Home({ go }: { go: (v: View) => void }) {
   const rx = useSpring(useTransform(my, [-.5, .5], [5, -5]), { stiffness: 200, damping: 20 })
   const ry = useSpring(useTransform(mx, [-.5, .5], [-7, 7]), { stiffness: 200, damping: 20 })
 
+  const displayUser = s.username ? `@${s.username}` : (s.name || 'friend')
+
   return (
     <>
       <Head
         kicker={`${helloEn} · ${helloJp} · ${n.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}`}
-        title={`${hello}, ${s.name}.`}
+        title={`${hello}, ${displayUser}.`}
       />
+      <ProfileCompletion />
+      <AnimeCompanion />
       <div className="md:grid md:grid-cols-2 md:items-start md:gap-8">
         <div>
           <motion.button
@@ -58,7 +70,9 @@ export function Home({ go }: { go: (v: View) => void }) {
               {nx ? (
                 <div className="mt-3 flex items-center gap-4">
                   <div className="min-w-0 flex-1">
-                    <h2 className="font-display text-3xl font-semibold leading-tight">{info(data, nx.e.course).name}</h2>
+                    <h2 className="font-display text-3xl font-semibold leading-tight">
+                      {nx.e.isExam ? `${nx.e.course} Midterm` : info(data, nx.e.course).name}
+                    </h2>
                     <p className="label mt-3">{[nx.e.title, `${clock(nx.e.start)} – ${clock(nx.e.end)}`, nx.e.room].filter(Boolean).join(' · ')}</p>
                     <p className="mt-3 font-mono text-sm text-accent">
                       {nx.now ? `ends in ${dur(mins(nx.e.end) - nm)}` : nx.i === 0 ? `in ${dur(mins(nx.e.start) - nm)}` : nx.i === 1 ? <>Ashita · tomorrow <span className="jp">明日</span></> : nx.d.toLocaleDateString('en-GB', { weekday: 'long' })}
@@ -96,10 +110,10 @@ export function Home({ go }: { go: (v: View) => void }) {
             <h2 className="font-display text-2xl italic">
               Kyō <span className="label not-italic">Today</span> <span className="jp text-sm not-italic">今日</span>
             </h2>
-            <span className="label">{today.length ? `${today.length} ${today.length > 1 ? 'classes' : 'class'}` : ''}</span>
+            <span className="label">{today.length ? `${today.length} ${today.length > 1 ? 'items' : 'item'}` : ''}</span>
           </div>
           <motion.div variants={list} initial="hidden" animate="show" className="space-y-3">
-            {today.length === 0 && <p className="label py-6"><Tri r="Jugyō nashi" en="No classes today" jp="授業なし" /></p>}
+            {today.length === 0 && <p className="label py-6"><Tri r="Jugyō nashi" en="No classes or exams today" jp="授業なし" /></p>}
             {today.map((e, i) => {
               const st = nm >= mins(e.end) ? 'done' : nm >= mins(e.start) ? 'now' : !marked ? (marked = true, 'next') : ''
               return <Ticket key={e.course + e.start} e={e} state={st} i={i} onClick={() => go('schedule')} />
