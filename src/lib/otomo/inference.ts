@@ -75,6 +75,7 @@ export async function checkDeviceCapability(): Promise<{
   webgpu: boolean
   estimatedVRAM: string
   recommended: string[]
+  maxComputeWorkgroupStorageSize?: number
   warning?: string
 }> {
   const gpuCheck = checkWebGPUSupport()
@@ -91,30 +92,41 @@ export async function checkDeviceCapability(): Promise<{
   // Estimate available memory
   const deviceMemory = (navigator as unknown as { deviceMemory?: number }).deviceMemory
   const lowMemory = deviceMemory !== undefined && deviceMemory <= 4
+  const gpu = (navigator as Navigator & {
+    gpu?: {
+      requestAdapter: () => Promise<{ limits: { maxComputeWorkgroupStorageSize: number } } | null>
+    }
+  }).gpu
+  const adapter = await gpu?.requestAdapter()
+  const maxComputeWorkgroupStorageSize = adapter?.limits.maxComputeWorkgroupStorageSize
+  const compatibleModels = MODEL_CATALOG
+    .filter(model => maxComputeWorkgroupStorageSize === undefined ||
+      model.minWorkgroupStorageSize <= maxComputeWorkgroupStorageSize)
+    .map(model => model.id)
 
   const recommended: string[] = []
 
   if (lowMemory) {
-    recommended.push('Qwen2.5-0.5B-Instruct-q4f16_1-MLC')
+    recommended.push(...compatibleModels.filter(id => id !== 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'))
     return {
       webgpu: true,
       estimatedVRAM: `~${deviceMemory ?? 'unknown'} GB device memory`,
       recommended,
-      warning: 'Low memory detected. Only the smallest models are recommended to avoid crashes.'
+      maxComputeWorkgroupStorageSize,
+      warning: 'Low memory detected. Smaller models are recommended to reduce the risk of running out of memory.'
     }
   }
 
-  // Standard device: offer a selection
-  recommended.push(
-    'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
-    'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
-    'SmolLM2-360M-Instruct-q4f16_1-MLC'
-  )
+  recommended.push(...compatibleModels)
 
   return {
     webgpu: true,
     estimatedVRAM: `~${deviceMemory ?? 'unknown'} GB device memory`,
-    recommended
+    recommended,
+    maxComputeWorkgroupStorageSize,
+    ...(maxComputeWorkgroupStorageSize === undefined
+      ? { warning: 'Could not inspect the GPU adapter limits. Model compatibility will be checked when loading.' }
+      : {})
   }
 }
 
@@ -127,6 +139,7 @@ export interface ModelInfo {
   description: string
   recommended: boolean
   minRAM: string
+  minWorkgroupStorageSize: number
 }
 
 export const MODEL_CATALOG: ModelInfo[] = [
@@ -134,9 +147,10 @@ export const MODEL_CATALOG: ModelInfo[] = [
     id: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
     name: 'SmolLM2 360M',
     size: '~200 MB',
-    description: 'Extremely lightweight. Fast on all devices. Limited reasoning.',
+    description: 'Extremely lightweight with limited reasoning. Still depends on browser and GPU support.',
     recommended: false,
-    minRAM: '2 GB'
+    minRAM: '2 GB',
+    minWorkgroupStorageSize: 0
   },
   {
     id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
@@ -144,15 +158,17 @@ export const MODEL_CATALOG: ModelInfo[] = [
     size: '~350 MB',
     description: 'Tiny but capable. Best balance for 4-8 GB devices. Good reasoning for its size.',
     recommended: true,
-    minRAM: '4 GB'
+    minRAM: '4 GB',
+    minWorkgroupStorageSize: 0
   },
   {
     id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
     name: 'Qwen 2.5 (1.5B)',
     size: '~1 GB',
-    description: 'Better reasoning and longer responses. Needs 8 GB+ RAM.',
+    description: 'Better reasoning and longer responses. Needs 8 GB+ RAM and a GPU adapter with at least 32 KB workgroup storage.',
     recommended: false,
-    minRAM: '8 GB'
+    minRAM: '8 GB',
+    minWorkgroupStorageSize: 32768
   }
 ]
 
@@ -223,6 +239,20 @@ async function loadModelInternal(modelId: string): Promise<boolean> {
 
   try {
     updateStatus({ status: 'checking', progress: 0, text: 'Checking device compatibility...' })
+    const model = MODEL_CATALOG.find(candidate => candidate.id === modelId)
+    const capability = await checkDeviceCapability()
+    if (
+      model &&
+      capability.maxComputeWorkgroupStorageSize !== undefined &&
+      capability.maxComputeWorkgroupStorageSize < model.minWorkgroupStorageSize
+    ) {
+      updateStatus({
+        status: 'error',
+        progress: 0,
+        text: `${model.name} needs ${model.minWorkgroupStorageSize / 1024} KB of GPU workgroup storage, but this adapter supports only ${Math.floor(capability.maxComputeWorkgroupStorageSize / 1024)} KB. Choose a smaller model such as Qwen 2.5 (0.5B).`
+      })
+      return false
+    }
 
     // Release any previous engine before replacing it, including a failed reload.
     if (engine) {

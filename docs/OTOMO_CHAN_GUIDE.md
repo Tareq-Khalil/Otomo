@@ -90,12 +90,14 @@ Otomo-chan operates **100% free of paid APIs** using browser-native open-source 
 - Weights are downloaded once and cached in the browser's Cache API / IndexedDB.
 - Code-split into a separate chunk (`dist/assets/web-llm-*.js`) via Vite so Home page load time is untouched.
 - The first model load requires an internet connection. Once downloaded and cached, the model can generate replies offline. The site's Content Security Policy must allow Hugging Face model files and the WebLLM model library hosted on GitHub.
+- Model compatibility also depends on the GPU adapter's limits, not just device RAM. Otomo checks `maxComputeWorkgroupStorageSize` and disables Qwen 2.5 (1.5B) when the adapter is below its 32 KB requirement; choose a smaller model instead. Other browser/GPU limits can still prevent a model from loading.
 
 ### Offline Companion Fallback Engine (`src/lib/otomo/fallback.ts`):
 - When WebGPU is not supported or before the user downloads a model, Quick Offline Mode provides rule-based answers for:
-  - Class schedules & timetable lookups
-  - Pending tasks and homework
+  - Class schedules & timetable lookups, using the selected section
+  - Pending tasks and homework from the current task store
   - Pomodoro focus session status
+  - A small set of study explanations and revision tips
 - A downloaded WebLLM model is required for open-ended generative replies while offline; the rule-based fallback explains its limits for unsupported questions.
 
 ---

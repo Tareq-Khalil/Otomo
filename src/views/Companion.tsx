@@ -44,6 +44,7 @@ import {
   cancelInference,
   MODEL_CATALOG,
   checkWebGPUSupport,
+  checkDeviceCapability,
   type ModelProgress
 } from '@/lib/otomo/inference'
 import { buildSystemPrompt, detectMoodFromResponse } from '@/lib/otomo/personality'
@@ -86,13 +87,27 @@ export function Companion() {
   const [modelProgress, setModelProgress] = useState<ModelProgress>(getModelStatus())
   const [selectedModel, setSelectedModel] = useState('Qwen2.5-0.5B-Instruct-q4f16_1-MLC')
   const [showModelBar, setShowModelBar] = useState(false)
+  const [deviceCapability, setDeviceCapability] = useState<Awaited<ReturnType<typeof checkDeviceCapability>> | null>(null)
   const gpuSupported = checkWebGPUSupport().supported
+  const selectedModelInfo = MODEL_CATALOG.find(model => model.id === selectedModel)
+  const selectedModelIncompatible = Boolean(
+    selectedModelInfo &&
+    deviceCapability?.maxComputeWorkgroupStorageSize !== undefined &&
+    deviceCapability.maxComputeWorkgroupStorageSize < selectedModelInfo.minWorkgroupStorageSize
+  )
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 1. Initial Load: Conversations & Model Status Listener
   useEffect(() => {
     void loadConversationsList()
+    void checkDeviceCapability().then(setDeviceCapability).catch(error => {
+      setModelProgress(progress => ({
+        ...progress,
+        status: 'error',
+        text: `Could not inspect GPU compatibility: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }))
+    })
     const unsubscribe = onStatusChange(p => setModelProgress({ ...p }))
     return () => {
       unsubscribe()
@@ -374,7 +389,16 @@ export function Companion() {
                   className="min-w-0 max-w-full rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
                 >
                   {MODEL_CATALOG.map(m => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.size})</option>
+                    <option
+                      key={m.id}
+                      value={m.id}
+                      disabled={Boolean(
+                        deviceCapability?.maxComputeWorkgroupStorageSize !== undefined &&
+                        deviceCapability.maxComputeWorkgroupStorageSize < m.minWorkgroupStorageSize
+                      )}
+                    >
+                      {m.name} ({m.size})
+                    </option>
                   ))}
                 </select>
               </div>
@@ -384,7 +408,7 @@ export function Companion() {
                   size="sm"
                   variant="accent"
                   onClick={handleDownloadModel}
-                  disabled={!gpuSupported || ['checking', 'downloading', 'loading'].includes(modelProgress.status)}
+                  disabled={!gpuSupported || selectedModelIncompatible || ['checking', 'downloading', 'loading'].includes(modelProgress.status)}
                 >
                   <Download size={12} />
                   {!gpuSupported
@@ -395,6 +419,12 @@ export function Companion() {
                 </Button>
               )}
             </div>
+
+            {selectedModelIncompatible && selectedModelInfo && (
+              <p role="status" className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-xs text-ink">
+                {selectedModelInfo.name} requires {selectedModelInfo.minWorkgroupStorageSize / 1024} KB of GPU workgroup storage. This device supports only {Math.floor((deviceCapability?.maxComputeWorkgroupStorageSize ?? 0) / 1024)} KB. Choose a smaller model; Qwen 2.5 (0.5B) is the recommended next option. Smaller models may still depend on other browser and GPU capabilities.
+              </p>
+            )}
 
             {(modelProgress.status === 'error' || modelProgress.status === 'unsupported' || !gpuSupported) && (
               <p role="alert" className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-xs text-ink">

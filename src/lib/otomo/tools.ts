@@ -14,6 +14,7 @@
 
 import type { Data, State } from '@/lib/types'
 import { listTasks as idbListTasks } from '@/lib/tasks'
+import { forSection, info } from '@/lib/schedule'
 
 // ─── Tool Definition ───────────────────────────────────────────────────────
 
@@ -46,8 +47,7 @@ const lookupSchedule: ToolDefinition = {
   },
   async execute(args, ctx) {
     const { data, state } = ctx
-    const key = `${state.faculty || 'foe'}_L${state.level || 1}_G${state.group || 1}_S${state.section || 1}`
-    const schedule = data.schedules[key]
+    const schedule = forSection(data, state.section || 1)
 
     if (!schedule) {
       return { success: true, data: { message: 'No schedule found for the student\'s section.' } }
@@ -67,7 +67,7 @@ const lookupSchedule: ToolDefinition = {
           day: args.day,
           events: dayEvents.map(e => ({
             course: e.course,
-            courseName: data.courses[e.course]?.name || e.course,
+            courseName: info(data, e.course).name,
             title: e.title,
             time: `${e.start} - ${e.end}`,
             room: e.room,
@@ -78,19 +78,21 @@ const lookupSchedule: ToolDefinition = {
     }
 
     // Full week
-    const weekSchedule: Record<string, unknown[]> = {}
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    for (const e of schedule) {
-      const dayName = dayNames[e.day] || `Day ${e.day}`
-      if (!weekSchedule[dayName]) weekSchedule[dayName] = []
-      weekSchedule[dayName].push({
-        course: data.courses[e.course]?.name || e.course,
-        title: e.title,
-        time: `${e.start} - ${e.end}`,
-        room: e.room
-      })
+    return {
+      success: true,
+      data: {
+        events: schedule.map(e => ({
+          day: dayNames[e.day] || `Day ${e.day}`,
+          course: e.course,
+          courseName: info(data, e.course).name,
+          title: e.title,
+          time: `${e.start} - ${e.end}`,
+          room: e.room,
+          staff: e.staff
+        }))
+      }
     }
-    return { success: true, data: weekSchedule }
   }
 }
 
@@ -102,7 +104,7 @@ const lookupTasks: ToolDefinition = {
   },
   async execute(args, ctx) {
     try {
-      const tasks = await idbListTasks(ctx.owner)
+      const tasks = await idbListTasks()
       const active = tasks.filter(t => !t.deletedAt)
       let filtered = active
 
@@ -127,8 +129,11 @@ const lookupTasks: ToolDefinition = {
           }))
         }
       }
-    } catch {
-      return { success: false, error: 'Could not access tasks.' }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Could not access tasks: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }
     }
   }
 }
