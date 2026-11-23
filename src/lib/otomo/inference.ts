@@ -256,7 +256,10 @@ async function loadModelInternal(modelId: string): Promise<boolean> {
     updateStatus({ status: 'ready', progress: 100, text: `${modelId} ready` })
     return true
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to load model'
+    const rawMessage = err instanceof Error ? err.message : 'Unknown error'
+    const message = /failed to fetch|networkerror|load failed/i.test(rawMessage)
+      ? `Could not download ${modelId}. Check your internet connection and retry. Model files are served by Hugging Face and GitHub; if this app is embedded in another site, its security policy must allow those hosts. (${rawMessage})`
+      : `Could not load ${modelId}: ${rawMessage}`
     updateStatus({ status: 'error', progress: 0, text: message })
     engine = null
     loadedModel = null

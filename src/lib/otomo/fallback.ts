@@ -13,7 +13,7 @@
  * - Focus timer controls and Pomodoro status
  * - Academic guidance (math, physics, CS, algorithms)
  * - University procedures and exam preparation tips
- * - Interactive conversational responses following Otomo's original voice direction
+ * - Clear guidance when a question needs the downloaded language model
  */
 
 import type { State, Data } from '@/lib/types'
@@ -165,9 +165,7 @@ export async function generateFallbackResponse({
 
   // 6. Greetings & Casual Inquiries
   if (
-    query.startsWith('hi') ||
-    query.startsWith('hello') ||
-    query.startsWith('hey') ||
+    /^(hi|hello|hey)\b/.test(query) ||
     query.includes('konnichiwa') ||
     query.includes('ohayo')
   ) {
@@ -175,7 +173,8 @@ export async function generateFallbackResponse({
     return fullResponse
   }
 
-  // 7. General Assistant Response
-  await emit(`I hear you, ${name}. While we're in offline companion mode, I have direct access to your local schedule, university timetable, tasks, and study records.\n\nIf you'd like full generative reasoning with WebLLM, you can also download our lightweight local model from the top bar when connected! In the meantime, feel free to ask about your classes, assignments, or study techniques.`)
+  // 7. Be explicit about the limits of this rule-based fallback instead of
+  // implying that it understood an unsupported question.
+  await emit(`I'm in Quick Offline Mode, ${name}. This built-in helper can look up your timetable, tasks, and focus timer, but it doesn't have a full language model for open-ended questions.\n\nTry asking “What classes do I have today?”, “Show my tasks”, or “What's my focus timer status?”. To chat freely while offline, connect to the internet and load Qwen once from Model Settings; after its files finish downloading, you can use the model without internet.`)
   return fullResponse
 }

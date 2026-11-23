@@ -323,7 +323,7 @@ export function Companion() {
             <p className="label flex min-w-0 items-center gap-1.5 !text-[9px] !tracking-wider">
               <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               <span className="hidden truncate min-[380px]:inline">
-                {modelProgress.status === 'ready' ? 'Neural WebGPU Active' : 'Offline Companion Active'}
+                {modelProgress.status === 'ready' ? 'Neural WebGPU Active' : 'Quick Offline Mode'}
               </span>
             </p>
           </div>
