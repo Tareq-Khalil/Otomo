@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { BookOpen, Check, Flame } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, ChevronUp, Flame } from 'lucide-react'
 
 const PRACTICE_KEY = 'otomo:japanese-practice'
+const VISIBILITY_KEY = 'otomo:japanese-practice-visible'
 
 const phrases = [
   {
@@ -101,6 +102,14 @@ function readProgress(): PracticeProgress {
   return { streak: 0, lastCompleted: null }
 }
 
+function readVisibility(): boolean {
+  try {
+    return localStorage.getItem(VISIBILITY_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
 export function JapanesePractice() {
   const today = new Date()
   const todayKey = localDateKey(today)
@@ -108,8 +117,19 @@ export function JapanesePractice() {
   const phraseIndex = dayNumber % phrases.length
   const phrase = phrases[phraseIndex]
   const [progress, setProgress] = useState(readProgress)
+  const [visible, setVisible] = useState(readVisibility)
   const [answer, setAnswer] = useState<string | null>(null)
   const completed = progress.lastCompleted === todayKey
+
+  const toggleVisibility = () => {
+    const nextVisible = !visible
+    setVisible(nextVisible)
+    try {
+      localStorage.setItem(VISIBILITY_KEY, String(nextVisible))
+    } catch (error) {
+      console.warn('Could not save Japanese practice visibility:', error)
+    }
+  }
 
   const chooseAnswer = (choice: string) => {
     setAnswer(choice)
@@ -144,61 +164,75 @@ export function JapanesePractice() {
           </h2>
           <p className="label mt-1">今日の日本語 · Today's Japanese</p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-mute" aria-label={`${progress.streak} day practice streak`}>
-          <Flame size={14} className={progress.streak ? 'text-accent' : 'text-mute'} />
-          {progress.streak} day{progress.streak === 1 ? '' : 's'}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="jp text-3xl font-semibold text-ink" lang="ja">{phrase.japanese}</p>
-          <p className="mt-1 text-sm text-mute">{phrase.romaji}</p>
-        </div>
-        <span className="label inline-flex items-center gap-1.5">
-        <BookOpen size={13} className="text-accent" /> Phrase {phraseIndex + 1} of {phrases.length}
-        </span>
-      </div>
-
-      <div className="mt-4 border-t border-line pt-3">
-        <p className="text-sm font-medium text-ink">What does it mean?</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-3">
-          {phrase.choices.map(choice => {
-            const correct = choice === phrase.meaning
-            const selected = answer === choice
-            return (
-              <button
-                key={choice}
-                type="button"
-                onClick={() => chooseAnswer(choice)}
-                aria-pressed={selected}
-                className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                  selected && correct
-                    ? 'border-accent bg-accent/10 text-ink'
-                    : selected
-                      ? 'border-gold/50 bg-gold/10 text-ink'
-                      : 'border-line bg-bg text-ink hover:border-accent/50'
-                }`}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  {choice}
-                  {selected && correct && <Check size={15} className="shrink-0 text-accent" />}
-                </span>
-              </button>
-            )
-          })}
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-mute" aria-label={`${progress.streak} day practice streak`}>
+            <Flame size={14} className={progress.streak ? 'text-accent' : 'text-mute'} />
+            {progress.streak} day{progress.streak === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            onClick={toggleVisibility}
+            aria-expanded={visible}
+            aria-controls="japanese-practice-content"
+            className="inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm text-mute transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            {visible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            <span>{visible ? 'Hide' : 'Show'}</span>
+          </button>
         </div>
       </div>
 
-      <p className="mt-3 min-h-5 text-sm text-mute" aria-live="polite">
-        {completed
-          ? 'Nicely done. Come back tomorrow for another phrase.'
-          : answer === phrase.meaning
-            ? <>{phrase.example} <span className="jp">{phrase.exampleRomaji}</span> — {phrase.exampleMeaning}</>
-            : answer
-              ? "Not quite. Try another choice; I'll wait."
-              : 'Choose the meaning to reveal an example.'}
-      </p>
+      <div id="japanese-practice-content" hidden={!visible}>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="jp text-3xl font-semibold text-ink" lang="ja">{phrase.japanese}</p>
+            <p className="mt-1 text-sm text-mute">{phrase.romaji}</p>
+          </div>
+          <span className="label inline-flex items-center gap-1.5">
+            <BookOpen size={13} className="text-accent" /> Phrase {phraseIndex + 1} of {phrases.length}
+          </span>
+        </div>
+
+        <div className="mt-4 border-t border-line pt-3">
+          <p className="text-sm font-medium text-ink">What does it mean?</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {phrase.choices.map(choice => {
+              const correct = choice === phrase.meaning
+              const selected = answer === choice
+              return (
+                <button
+                  key={choice}
+                  type="button"
+                  onClick={() => chooseAnswer(choice)}
+                  aria-pressed={selected}
+                  className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                    selected && correct
+                      ? 'border-accent bg-accent/10 text-ink'
+                      : selected
+                        ? 'border-gold/50 bg-gold/10 text-ink'
+                        : 'border-line bg-bg text-ink hover:border-accent/50'
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    {choice}
+                    {selected && correct && <Check size={15} className="shrink-0 text-accent" />}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <p className="mt-3 min-h-5 text-sm text-mute" aria-live="polite">
+          {completed
+            ? 'Nicely done. Come back tomorrow for another phrase.'
+            : answer === phrase.meaning
+              ? <>{phrase.example} <span className="jp">{phrase.exampleRomaji}</span> — {phrase.exampleMeaning}</>
+              : answer
+                ? "Not quite. Try another choice; I'll wait."
+                : 'Choose the meaning to reveal an example.'}
+        </p>
+      </div>
     </motion.section>
   )
 }
