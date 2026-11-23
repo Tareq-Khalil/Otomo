@@ -5,8 +5,8 @@ import { Ticket } from '@/components/Ticket'
 import { Tri } from '@/components/Tri'
 import { eventsOn, info, nextClass } from '@/lib/schedule'
 import { Missions } from '@/components/Missions'
+import { JapanesePractice } from '@/components/JapanesePractice'
 import { ProfileCompletion } from '@/components/ProfileCompletion'
-import { AnimeCompanion } from '@/components/AnimeCompanion'
 import { useTasks } from '@/lib/tasks'
 import { useEvents } from '@/lib/events'
 import { useExams } from '@/lib/exams'
@@ -48,7 +48,6 @@ export function Home({ go }: { go: (v: View) => void }) {
         title={`${hello}, ${displayUser}.`}
       />
       <ProfileCompletion />
-      <AnimeCompanion />
       <div className="md:grid md:grid-cols-2 md:items-start md:gap-8">
         <div>
           <motion.button
@@ -102,6 +101,7 @@ export function Home({ go }: { go: (v: View) => void }) {
               <p className="label mt-1"><Tri r="Shūchū" en="start a focus round" jp="集中" /></p>
             </motion.button>
           </div>
+          <JapanesePractice />
           <Missions go={go} />
         </div>
 

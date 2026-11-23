@@ -14,6 +14,7 @@ export function ProfileCompletion() {
   const [name, setName] = useState(s.name || '')
   const [username, setUsername] = useState(s.username || sync.profile?.username || '')
   const [faculty, setFaculty] = useState(s.faculty || 'foe')
+  const [facultyNotice, setFacultyNotice] = useState('')
   const [level, setLevel] = useState(s.level || 1)
   const [code, setCode] = useState(s.code || '')
   const [saving, setSaving] = useState(false)
@@ -106,21 +107,31 @@ export function ProfileCompletion() {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setFaculty(f.id)}
+                  onClick={() => {
+                    if (!f.supported) {
+                      setFacultyNotice(`${f.name} isn't available yet. It will be added in a future update.`)
+                      return
+                    }
+                    setFaculty(f.id)
+                    setFacultyNotice('')
+                  }}
                   className={`flex items-center justify-between rounded-xl border p-3 text-left transition-all ${
                     faculty === f.id
                       ? 'border-accent bg-accent/5 ring-1 ring-accent'
-                      : 'border-line bg-surface hover:border-line/80'
+                      : f.supported
+                        ? 'border-line bg-surface hover:border-line/80'
+                        : 'border-line bg-surface/60 text-mute hover:border-gold/50'
                   }`}
                 >
                   <div>
                     <span className="block font-medium text-sm text-ink">{f.name}</span>
-                    <span className="label text-[10px]">{f.shortName}</span>
+                    <span className="label text-[10px]">{f.shortName} · {f.supported ? 'Available' : 'Coming soon'}</span>
                   </div>
                   {faculty === f.id && <CheckCircle2 size={16} className="text-accent" />}
                 </button>
               ))}
             </div>
+            {facultyNotice && <p role="status" className="mt-2 text-xs text-gold">{facultyNotice}</p>}
           </div>
 
           {selectedFac && (
@@ -186,4 +197,3 @@ export function ProfileCompletion() {
     </>
   )
 }
-

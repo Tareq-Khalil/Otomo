@@ -275,7 +275,9 @@ export function Account() {
                     className={field}
                   >
                     {FACULTIES.map(f => (
-                      <option key={f.id} value={f.id}>{f.shortName}</option>
+                      <option key={f.id} value={f.id} disabled={!f.supported}>
+                        {f.shortName}{!f.supported ? ' (Coming soon)' : ''}
+                      </option>
                     ))}
                   </select>
                 </div>

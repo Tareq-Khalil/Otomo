@@ -34,9 +34,24 @@ export const FACULTIES: FacultyConfig[] = [
       { level: 4, label: 'Level 4', supported: false },
     ],
   },
-  // ─── Future faculties ───────────────────────────────────────────────────────
-  // { id: 'fos', name: 'Faculty of Science', shortName: 'FoS', supported: false,
-  //   maxGroups: 4, sectionsPerGroup: 2, levels: [] },
+  {
+    id: 'fib',
+    name: 'Faculty of International Business',
+    shortName: 'FIB',
+    supported: false,
+    maxGroups: 0,
+    sectionsPerGroup: 0,
+    levels: [],
+  },
+  {
+    id: 'fcs',
+    name: 'Faculty of Computer Science',
+    shortName: 'FCS',
+    supported: false,
+    maxGroups: 0,
+    sectionsPerGroup: 0,
+    levels: [],
+  },
 ]
 
 /** Returns true only when both the faculty and level are fully supported. */
@@ -63,4 +78,3 @@ export const getSections = (facultyId: string, group: number): number[] => {
   if (!fac) return []
   return Array.from({ length: fac.sectionsPerGroup }, (_, i) => (group - 1) * fac.sectionsPerGroup + i + 1)
 }
-

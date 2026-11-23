@@ -1,5 +1,5 @@
 const NAME = 'otomo'
-const VERSION = 2   // bumped from 1: added 'events' store
+const VERSION = 3   // bumped to 3: added 'conversations', 'messages', 'memories', 'otomoConfigCache'
 let opened: Promise<IDBDatabase> | null = null
 
 export const db = (): Promise<IDBDatabase> =>
@@ -26,6 +26,29 @@ export const db = (): Promise<IDBDatabase> =>
           d.createObjectStore('events', { keyPath: 'id' }).createIndex('owner', 'owner')
         if (!d.objectStoreNames.contains('eventsOutbox'))
           d.createObjectStore('eventsOutbox', { keyPath: 'eventId' }).createIndex('owner', 'owner')
+      }
+
+      // v3 stores — conversations, messages, memories, otomoConfigCache
+      if (oldVersion < 3) {
+        if (!d.objectStoreNames.contains('conversations')) {
+          const convStore = d.createObjectStore('conversations', { keyPath: 'id' })
+          convStore.createIndex('owner', 'owner')
+          convStore.createIndex('updatedAt', 'updatedAt')
+        }
+        if (!d.objectStoreNames.contains('messages')) {
+          const msgStore = d.createObjectStore('messages', { keyPath: 'id' })
+          msgStore.createIndex('conversationId', 'conversationId')
+          msgStore.createIndex('createdAt', 'createdAt')
+        }
+        if (!d.objectStoreNames.contains('memories')) {
+          const memStore = d.createObjectStore('memories', { keyPath: 'id' })
+          memStore.createIndex('owner', 'owner')
+          memStore.createIndex('category', 'category')
+          memStore.createIndex('createdAt', 'createdAt')
+        }
+        if (!d.objectStoreNames.contains('otomoConfigCache')) {
+          d.createObjectStore('otomoConfigCache', { keyPath: 'key' })
+        }
       }
     }
     r.onsuccess = () => {

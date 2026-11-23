@@ -6,4 +6,11 @@ const subs = new Set<() => void>()
 export const setUpdater = (f: () => Promise<void>) => { apply = f }
 export const markWaiting = () => { waiting = true; subs.forEach(f => f()) }
 export const useUpdateReady = () => useSyncExternalStore(cb => { subs.add(cb); return () => subs.delete(cb) }, () => waiting)
-export const applyUpdate = () => apply?.()
+export const applyUpdate = async () => {
+  if (!apply) return
+  try {
+    await apply()
+  } catch (error) {
+    console.error('Could not apply the Otomo update:', error)
+  }
+}

@@ -1,22 +1,31 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ArrowLeft, ArrowRight, Check, Sparkles, User, Lock, Mail, AtSign, School, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, User, Lock, Mail, AtSign, School, CheckCircle2, Stethoscope, GraduationCap, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { OtomoCharacter } from '@/components/OtomoCharacter'
 import { useApp } from '@/lib/store'
 import { FACULTIES, getFaculty, getGroups, getSections, isSupported } from '@/lib/faculties'
-import { signUp } from '@/lib/sync'
+import { configured, signIn, signUp } from '@/lib/sync'
 import { cn } from '@/lib/utils'
 
 export function Onboarding() {
   const { set } = useApp()
 
-  // Wizard step: 0 = Welcome, 1 = Faculty, 2 = Level, 3 = Profile, 4 = Optional Account
+  const [hasStarted, setHasStarted] = useState(false)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
+  const [loginMsg, setLoginMsg] = useState('')
+
+  // Wizard step: 0 = Role, 1 = Faculty, 2 = Level, 3 = Profile, 4 = Optional Account
   const [step, setStep] = useState<number>(0)
   const [dir, setDir] = useState<1 | -1>(1)
+  const [selectedRole, setSelectedRole] = useState<'student' | 'ta' | 'doctor' | null>(null)
+  const [roleNotice, setRoleNotice] = useState('')
 
   // Academic & personal state
   const [faculty, setFaculty] = useState<string>('foe')
+  const [facultyNotice, setFacultyNotice] = useState('')
   const [level, setLevel] = useState<number>(1)
   const [name, setName] = useState<string>('')
   const [code, setCode] = useState<string>('')
@@ -83,10 +92,127 @@ export function Onboarding() {
     finishOnboarding()
   }
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginBusy(true)
+    setLoginMsg('')
+    const error = await signIn(loginEmail.trim(), loginPassword)
+    setLoginBusy(false)
+    if (error) {
+      setLoginMsg(error)
+      return
+    }
+    setLoginPassword('')
+  }
+
   const stepVariants = {
     enter: (d: number) => ({ x: d > 0 ? 30 : -30, opacity: 0 }),
     center: { x: 0, opacity: 1 },
     exit: (d: number) => ({ x: d > 0 ? -30 : 30, opacity: 0 })
+  }
+
+  if (!hasStarted) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 overflow-y-auto bg-bg px-6 py-[calc(2.5rem+env(safe-area-inset-top))]"
+      >
+        <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center py-6">
+          <div className="mb-8 flex items-center justify-center gap-2">
+            <span className="seal w-8 h-8 text-sm">供</span>
+            <span className="font-display text-lg font-medium tracking-tight">Otomo</span>
+          </div>
+
+          <section aria-labelledby="account-entry-title" className="space-y-5">
+            <div className="text-center">
+              <OtomoCharacter mood="welcome" size="sm" showBadge={false} className="mx-auto mb-2" />
+              <h1 id="account-entry-title" className="font-display text-3xl font-light italic">
+                Welcome to Otomo.
+              </h1>
+              <p className="mt-1 text-sm text-mute">
+                Sign in to your account, or continue with setup.
+              </p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-3 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+              <div>
+                <label htmlFor="onboarding-login-email" className="label block mb-1">Email</label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-3.5 text-mute" />
+                  <input
+                    id="onboarding-login-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={loginEmail}
+                    onChange={event => setLoginEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    className="h-11 w-full rounded-xl border border-line bg-bg pl-9 pr-3 text-base text-ink placeholder:text-mute/60 focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="onboarding-login-password" className="label block mb-1">Password</label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-3.5 text-mute" />
+                  <input
+                    id="onboarding-login-password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={loginPassword}
+                    onChange={event => setLoginPassword(event.target.value)}
+                    placeholder="Your password"
+                    className="h-11 w-full rounded-xl border border-line bg-bg pl-9 pr-3 text-base text-ink placeholder:text-mute/60 focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {loginMsg && (
+                <p role="alert" className="rounded-lg border border-accent/20 bg-accent/10 p-2.5 text-xs text-ink">
+                  {loginMsg}
+                </p>
+              )}
+              {!configured && (
+                <p className="text-xs leading-relaxed text-mute">
+                  Cloud sign-in is unavailable in this build. You can continue with setup and use Otomo offline.
+                </p>
+              )}
+
+              <Button
+                type="submit"
+                variant="accent"
+                className="h-11 w-full"
+                disabled={!configured || loginBusy || !loginEmail.trim() || !loginPassword}
+              >
+                <LogIn size={16} className="mr-1.5" />
+                {loginBusy ? 'Signing in…' : 'Log in'}
+              </Button>
+            </form>
+
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              <span className="label text-[9px]">or</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+
+            <Button
+              type="button"
+              variant="line"
+              className="h-11 w-full"
+              onClick={() => setHasStarted(true)}
+            >
+              Continue with setup <ArrowRight size={16} className="ml-1.5" />
+            </Button>
+            <p className="label text-center text-[10px]">
+              You can create an optional cloud account later in setup.
+            </p>
+          </section>
+        </div>
+      </motion.div>
+    )
   }
 
   return (
@@ -123,7 +249,7 @@ export function Onboarding() {
         {/* Wizard Step Content */}
         <div className="relative min-h-[380px]">
           <AnimatePresence custom={dir} mode="wait">
-            {/* STEP 0: Welcome */}
+            {/* STEP 0: Role Selection */}
             {step === 0 && (
               <motion.div
                 key="step-0"
@@ -133,31 +259,68 @@ export function Onboarding() {
                 animate="center"
                 exit="exit"
                 transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-6 text-center"
+                className="space-y-5"
               >
-                <OtomoCharacter mood="welcome" className="mx-auto" />
-                <div className="space-y-2">
-                  <p className="label !text-accent flex items-center justify-center gap-1.5">
-                    <Sparkles size={13} /> ようこそ · Welcome to Otomo
-                  </p>
-                  <h1 className="font-display text-4xl sm:text-5xl font-light italic leading-tight">
-                    Your personal academic companion.
-                  </h1>
-                  <p className="text-sm text-mute max-w-sm mx-auto leading-relaxed">
-                    Designed for E-JUST students. Real-time timetable, exam hall allocations, offline tasks, and focus timer.
-                  </p>
+                <div className="flex items-center gap-4">
+                  <OtomoCharacter mood="welcome" size="sm" showBadge={false} />
+                  <div>
+                    <h1 className="font-display text-3xl font-light italic leading-tight">
+                      Welcome to Otomo.
+                    </h1>
+                    <p className="mt-1 text-sm text-mute">
+                      First, tell me how you use E-JUST.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="pt-4">
-                  <Button
-                    variant="accent"
-                    className="w-full text-base h-12 shadow-lg shadow-accent/20"
-                    onClick={() => goTo(1)}
-                  >
-                    Get Started <ArrowRight size={18} className="ml-1.5" />
-                  </Button>
-                  <p className="label mt-3 text-[10px]">No account required to begin.</p>
+                <div className="grid gap-2.5">
+                  {[
+                    { id: 'student', label: 'Student', description: 'Study tools, timetable, and Otomo', Icon: GraduationCap },
+                    { id: 'ta', label: 'Teaching Assistant', description: 'Tools for E-JUST teaching assistants', Icon: User },
+                    { id: 'doctor', label: 'Doctor', description: 'Tools for E-JUST faculty members', Icon: Stethoscope }
+                  ].map(({ id, label, description, Icon }) => {
+                    const active = selectedRole === id
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole(id as 'student' | 'ta' | 'doctor')
+                          if (id === 'student') {
+                            setRoleNotice('')
+                            goTo(1)
+                          } else {
+                            setRoleNotice(`${label} access isn't available yet. It will arrive in a future update.`)
+                          }
+                        }}
+                        className={cn(
+                          'flex min-h-16 w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition-colors',
+                          active ? 'border-accent bg-accent/5' : 'border-line bg-surface hover:border-accent/50'
+                        )}
+                      >
+                        <span className={cn(
+                          'grid h-10 w-10 shrink-0 place-items-center rounded-xl border',
+                          active ? 'border-accent/40 bg-accent text-white' : 'border-line bg-bg text-mute'
+                        )}>
+                          <Icon size={19} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium text-ink">{label}</span>
+                          <span className="block text-xs text-mute">{description}</span>
+                        </span>
+                        {id === 'student'
+                          ? <ArrowRight size={16} className="shrink-0 text-accent" />
+                          : <span className="label shrink-0 text-[9px]">Coming soon</span>}
+                      </button>
+                    )
+                  })}
                 </div>
+                {roleNotice && (
+                  <p role="status" className="rounded-xl border border-gold/30 bg-gold/10 p-3 text-sm text-ink">
+                    {roleNotice}
+                  </p>
+                )}
+                <p className="label text-center text-[10px]">No account required to begin.</p>
               </motion.div>
             )}
 
@@ -191,12 +354,21 @@ export function Onboarding() {
                       <button
                         key={f.id}
                         type="button"
-                        onClick={() => setFaculty(f.id)}
+                        onClick={() => {
+                          if (!f.supported) {
+                            setFacultyNotice(`${f.name} isn't available yet. It will be added in a future update.`)
+                            return
+                          }
+                          setFaculty(f.id)
+                          setFacultyNotice('')
+                        }}
                         className={cn(
-                          'w-full rounded-2xl border p-4 text-left transition-all flex items-center justify-between',
+                          'flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors',
                           active
                             ? 'border-accent bg-accent/5 ring-1 ring-accent shadow-sm'
-                            : 'border-line bg-surface hover:border-line/80'
+                            : f.supported
+                              ? 'border-line bg-surface hover:border-line/80'
+                              : 'border-line bg-surface/60 text-mute hover:border-gold/50'
                         )}
                       >
                         <div className="flex items-center gap-3">
@@ -207,26 +379,31 @@ export function Onboarding() {
                             <School size={20} />
                           </div>
                           <div>
-                            <span className="font-medium text-base text-ink block">{f.name}</span>
+                            <span className="block font-medium text-base text-ink">{f.name}</span>
                             <span className="label text-[11px] text-mute">{f.shortName} · E-JUST</span>
                           </div>
                         </div>
-                        {active && <CheckCircle2 size={20} className="text-accent" />}
+                        {active
+                          ? <CheckCircle2 size={20} className="text-accent" />
+                          : <span className="label text-[9px]">{f.supported ? 'Available' : 'Coming soon'}</span>}
                       </button>
                     )
                   })}
                 </div>
 
-                <div className="pt-4">
+                {facultyNotice ? (
+                  <p role="status" className="rounded-xl border border-gold/30 bg-gold/10 p-3 text-sm text-ink">
+                    {facultyNotice}
+                  </p>
+                ) : (
                   <Button
                     variant="accent"
-                    className="w-full h-11"
-                    disabled={!faculty}
+                    className="mt-2 h-11 w-full"
                     onClick={() => goTo(2)}
                   >
                     Continue to Academic Level <ArrowRight size={16} className="ml-1.5" />
                   </Button>
-                </div>
+                )}
               </motion.div>
             )}
 
@@ -288,7 +465,7 @@ export function Onboarding() {
                 {!isSupported(faculty, level) ? (
                   <div className="rounded-2xl border border-gold/30 bg-gold/10 p-4 text-center space-y-2">
                     <p className="text-sm font-medium text-ink">
-                      Level {level} is arriving soon! 🌸
+                      Level {level} is arriving soon.
                     </p>
                     <p className="text-xs text-mute leading-relaxed">
                       Course data, midterm room distributions, and timetables for Level {level} are currently in development.

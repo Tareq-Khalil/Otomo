@@ -24,6 +24,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,woff2,png}'],
         // timetable data: network first so changes show up, saved copy when offline
         
@@ -69,5 +70,20 @@ runtimeCaching: [
 
       }
     })
-  ]
+  ],
+  build: {
+    chunkSizeWarningLimit: 3000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@mlc-ai/web-llm')) {
+            return 'web-llm'
+          }
+          if (id.includes('kokoro-js') || id.includes('@huggingface/transformers') || id.includes('onnxruntime')) {
+            return 'kokoro-tts'
+          }
+        }
+      }
+    }
+  }
 })

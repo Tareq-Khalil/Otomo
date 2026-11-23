@@ -274,7 +274,9 @@ export function StudentCard() {
                 className="h-11 w-full rounded-xl border border-line bg-bg px-3 text-sm text-ink focus:border-accent focus:outline-none"
               >
                 {FACULTIES.map(f => (
-                  <option key={f.id} value={f.id}>{f.shortName} ({f.name})</option>
+                  <option key={f.id} value={f.id} disabled={!f.supported}>
+                    {f.shortName} ({f.name}){!f.supported ? ' — Coming soon' : ''}
+                  </option>
                 ))}
               </select>
             </div>

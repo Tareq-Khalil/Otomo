@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { CalendarDays, CheckSquare, Home as HomeIcon, Settings as Cog, Timer, Users } from 'lucide-react'
+import { CalendarDays, CheckSquare, Home as HomeIcon, Settings as Cog, Timer, Users, Sparkles } from 'lucide-react'
 import { AppCtx, blank, usePersisted } from '@/lib/store'
 import { isData, type Data, type State } from '@/lib/types'
 import { Home } from '@/views/Home'
@@ -17,16 +17,22 @@ import { useReminders } from '@/lib/reminders'
 import { ReminderToasts } from '@/components/ReminderToasts'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WhatsNew } from '@/components/WhatsNew'
+import { initConfig } from '@/lib/otomo/config'
+
+// Lazy load heavy AI and developer modules so Home and core timetable load instantly
+const Companion = lazy(() => import('@/views/Companion').then(m => ({ default: m.Companion })))
+const Studio = lazy(() => import('@/views/Studio').then(m => ({ default: m.Studio })))
 
 const TABS = [
   { id: 'home', label: 'Home', kanji: '家', Icon: HomeIcon },
+  { id: 'companion', label: 'Otomo', kanji: '供', Icon: Sparkles },
   { id: 'schedule', label: 'Week', kanji: '週', Icon: CalendarDays },
-  { id: 'others', label: 'Others', kanji: '皆', Icon: Users },
   { id: 'tasks', label: 'Tasks', kanji: '課', Icon: CheckSquare },
   { id: 'study', label: 'Focus', kanji: '集', Icon: Timer },
+  { id: 'others', label: 'Others', kanji: '皆', Icon: Users },
   { id: 'settings', label: 'You', kanji: '我', Icon: Cog }
 ] as const
-export type View = (typeof TABS)[number]['id']
+export type View = (typeof TABS)[number]['id'] | 'studio'
 
 
 function useData() {
@@ -83,7 +89,12 @@ export default function App() {
   const { d, failed } = useData()
   const set = (p: Partial<State>) => setS(o => ({ ...o, ...p }))
 
-  useEffect(() => { startSync() }, [])
+  useEffect(() => {
+    startSync()
+    void initConfig().catch(error => {
+      console.error('Could not load Otomo configuration:', error)
+    })
+  }, [])
   const sync = useSync()
 
   // When cloud profile loads for registered users, sync any missing local profile fields
@@ -118,17 +129,41 @@ export default function App() {
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', s.theme === 'dark' ? '#0a0a0b' : '#faf7f5')
   }, [s.theme])
 
+  // Support URL hash routing (#developer, #companion, etc.)
+  useEffect(() => {
+    const handleRoute = () => {
+      const hash = window.location.hash.replace('#', '')
+      if (hash === 'developer' || window.location.pathname.includes('/developer')) {
+        setView('studio')
+      } else if (['home', 'companion', 'schedule', 'tasks', 'study', 'others', 'settings'].includes(hash)) {
+        setView(hash as View)
+      }
+    }
+    handleRoute()
+    window.addEventListener('hashchange', handleRoute)
+    return () => window.removeEventListener('hashchange', handleRoute)
+  }, [])
+
   const ctx = useMemo(() => (d ? { s, set, data: d } : null), [s, d]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!ctx) return <div className="grid h-full place-items-center p-8 text-center"><p className="label">{failed ? 'Could not load the timetable. Check your connection.' : 'Loading…'}</p></div>
   const onboarded = s.name && s.group && s.section
 
-  const page = { home: <Home go={setView} />, schedule: <Schedule go={setView} />, others: <Others />, tasks: <Tasks />, study: <Study />, settings: <Settings /> }[view]
+  const page = {
+    home: <Home go={setView} />,
+    companion: <Companion />,
+    schedule: <Schedule go={setView} />,
+    tasks: <Tasks />,
+    study: <Study />,
+    others: <Others />,
+    settings: <Settings onOpenStudio={() => setView('studio')} />,
+    studio: <Studio onBack={() => setView('settings')} />
+  }[view]
   return (
     <AppCtx.Provider value={ctx}>
       <Sakura />
       <div className="h-full md:pl-60">
         <div className="mx-auto flex h-full max-w-xl flex-col md:max-w-5xl">
-          <main className="flex-1 overflow-y-auto px-5 pb-32 pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-10 md:pt-8">
+          <main className="min-h-0 flex-1 overflow-y-auto px-5 pb-32 pt-[calc(1.5rem+env(safe-area-inset-top))] md:px-8 md:pb-10 md:pt-8">
             <AnimatePresence mode="wait">
               <motion.div
                 key={view}
@@ -136,8 +171,11 @@ export default function App() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.99 }}
                 transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                className={view === 'companion' ? 'h-full min-h-0' : undefined}
               >
-                {page}
+                <Suspense fallback={<div className="grid h-full place-items-center p-8 text-center"><p className="label">Loading...</p></div>}>
+                  {page}
+                </Suspense>
               </motion.div>
             </AnimatePresence>
           </main>

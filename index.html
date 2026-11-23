@@ -4,31 +4,78 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#0a0a0b" />
+  <meta name="color-scheme" content="dark light" />
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-title" content="Otomo" />
+  <meta name="application-name" content="Otomo" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="apple-touch-icon" href="https://ejust-otomo.vercel.app/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="https://ejust-otomo.vercel.app/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="https://ejust-otomo.vercel.app/icons/icon-512.png" />
+  <link rel="manifest" href="https://ejust-otomo.vercel.app/manifest.webmanifest" />
   <link rel="canonical" href="https://ejust-otomo.vercel.app/" />
-  <title>Otomo — E-JUST FOE Level 1 class schedule, tasks &amp; focus timer (EN · 日本語 · Rōmaji)</title>
-  <meta name="description" content="Otomo is a free app for E-JUST students: see your section's weekly timetable, what class is next, your tasks and a Pomodoro focus timer. Works offline, installs on your phone." />
-  <meta name="keywords" content="E-JUST schedule, E-JUST timetable, Egypt-Japan University of Science and Technology, student timetable app, class schedule, pomodoro, Otomo" />
+  <link rel="alternate" hreflang="en" href="https://ejust-otomo.vercel.app/" />
+  <link rel="alternate" hreflang="x-default" href="https://ejust-otomo.vercel.app/" />
+  <title>Otomo — E-JUST Timetable, Exam Rooms, Tasks &amp; Study Companion</title>
+  <meta name="description" content="Otomo is a free E-JUST student companion for weekly timetables, exam rooms, assignments, personal events, Pomodoro focus sessions, and Otomo-chan AI help. Works offline and supports English, 日本語, and Rōmaji." />
+  <meta name="keywords" content="Otomo, E-JUST, E-JUST schedule, E-JUST timetable, E-JUST exam rooms, Egypt-Japan University of Science and Technology, E-JUST app, student timetable app, FoE Level 1, Pomodoro focus timer, Otomo-chan" />
+  <meta name="author" content="Otomo" />
+  <meta name="category" content="education, university, productivity" />
   <meta name="robots" content="index,follow,max-image-preview:large" />
   <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="Otomo" />
-  <meta property="og:title" content="Otomo — your E-JUST week, in your pocket" />
-  <meta property="og:description" content="Weekly timetable, next-class countdown, tasks and focus timer for E-JUST students. Free, offline, installable." />
-  <meta property="og:url" content="%VITE_SITE_URL%/" />
-  <meta property="og:image" content="%VITE_SITE_URL%/icons/icon-512.png" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:title" content="Otomo — E-JUST Timetable &amp; Study Companion" />
+  <meta property="og:description" content="Check your E-JUST timetable, exam room, tasks, personal events, and Pomodoro sessions in one free offline app." />
+  <meta property="og:url" content="https://ejust-otomo.vercel.app/" />
+  <meta property="og:image" content="https://ejust-otomo.vercel.app/icons/icon-512.png" />
+  <meta property="og:image:secure_url" content="https://ejust-otomo.vercel.app/icons/icon-512.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt" content="Otomo app icon — an E-JUST student companion" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Otomo — E-JUST Timetable &amp; Study Companion" />
+  <meta name="twitter:description" content="Timetables, exam rooms, tasks, focus sessions, and Otomo-chan for E-JUST students." />
+  <meta name="twitter:image" content="https://ejust-otomo.vercel.app/icons/icon-512.png" />
+  <meta name="twitter:image:alt" content="Otomo app icon" />
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"WebApplication","name":"Otomo","alternateName":"お供","url":"https://ejust-otomo.vercel.app/","applicationCategory":"EducationalApplication","operatingSystem":"Any","inLanguage":["en","ja"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Weekly class timetable, tasks and focus timer for E-JUST students."}
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Otomo",
+    "alternateName": ["お供", "Otomo-chan"],
+    "url": "https://ejust-otomo.vercel.app/",
+    "applicationCategory": ["EducationalApplication", "ProductivityApplication"],
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "inLanguage": ["en", "ja"],
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "description": "An offline-capable student companion for E-JUST timetables, exam rooms, tasks, personal events, focus sessions, and Otomo-chan AI help.",
+    "featureList": [
+      "E-JUST weekly timetable",
+      "Personalized exam room lookup",
+      "Task and personal event management",
+      "Pomodoro focus timer",
+      "Offline use",
+      "Otomo-chan student companion"
+    ],
+    "publisher": {
+      "@type": "Organization",
+      "name": "Otomo",
+      "url": "https://ejust-otomo.vercel.app/"
+    }
+  }
   </script>
 </head>
 <body>
   <div id="root">
     <main style="font-family:system-ui;padding:2rem;max-width:36rem;margin:auto">
-      <h1>Otomo (お供) — E-JUST FOE Level 1 schedule app</h1>
-      <p>Pick your group and section to see your weekly timetable, the next class, your tasks and a focus timer. Available in English, Japanese (日本語) and Rōmaji. Free, works offline.</p>
+      <h1>Otomo (お供) — E-JUST timetable and study companion</h1>
+      <p>View your weekly E-JUST timetable and exam rooms, manage tasks and personal events, run a Pomodoro focus timer, and chat with Otomo-chan. Available in English, 日本語, and Rōmaji. Free to use and available offline.</p>
       <noscript><p>Please enable JavaScript to use Otomo.</p></noscript>
     </main>
   </div>

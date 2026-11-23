@@ -72,16 +72,10 @@ export function Study() {
         {/* Cute Mascot Study Companion */}
         <div className="mb-2 flex justify-center">
           <OtomoCharacter
-            mood={
-              !run
-                ? 'welcome'
-                : brk
-                ? 'resting'
-                : run.left !== undefined
-                ? 'happy'
-                : 'studying'
-            }
+            mood="studying"
             size="sm"
+            showBadge={false}
+            subtleAnimation={!!run && !brk && run.left === undefined}
           />
         </div>
         <p className="label">{run ? (run.left !== undefined ? 'Paused' : brk ? (run.kind === 'long' ? 'Long break' : 'Break') : 'Focusing') : 'Ready'}</p>

@@ -1,4 +1,4 @@
-# Otomo (お供) · v3.0.0
+# Otomo (お供) · Update 4 · v4.0.0
 
 A local-first academic companion, timetable, exam hall locator, offline task manager, and focus timer designed for E-JUST (Egypt-Japan University of Science and Technology) students.
 
@@ -13,7 +13,14 @@ Deployed on Vercel. Set `VITE_SITE_URL` to match your production domain. Configu
 
 ---
 
-## What's New in Major Update 3 (v3.0.0)
+## What's New in Update 4 (v4.0.0)
+
+- Improved search-engine metadata, canonical URLs, social previews, `robots.txt`, and `sitemap.xml`.
+- More frequent PWA update checks and an in-app update-and-reload banner.
+- Otomo-chan replies in text only. Students can still use microphone input to send voice questions.
+- Admin-only Developer Studio publishing and feedback tools, with private feedback attachments.
+
+## Major Update 3 (v3.0.0)
 
 ### 1. FoE Level 1 Midterm Examination Schedule & Room Locator
 - **Official Exam Schedule**: Full integration of the FoE Grade 1 midterm schedule:
@@ -43,7 +50,9 @@ Deployed on Vercel. Set `VITE_SITE_URL` to match your production domain. Configu
 - Friendly, animated "Coming Soon" notifications for upcoming faculties and levels.
 
 ### 5. Japanese Anime Aesthetics & Animations
-- **Welcoming Onboarding Wizard**: 5-step animated wizard featuring Otomo-chan, guiding users through faculty, level, academic profile, and optional account setup.
+- **Welcoming Onboarding Wizard**: 5-step animated wizard featuring role selection, available E-JUST faculty and level choices, academic profile setup, and optional account sync.
+- **Daily Japanese Practice**: A rotating phrase, pronunciation guide, quick meaning check, example sentence, and locally saved practice streak.
+- **Text-Only AI Companion**: Otomo-chan replies in text; students can still ask questions using microphone speech recognition where supported.
 - **Interactive Anime Mascot Companion**: Chibi Otomo-chan widget on Home with contextual advice (exam day reminders, task counters) and reactive manga sound-effect stickers on tap (`*ファイト！*`, `*キラキラ*`, `*よしっ！*`).
 - **Anime Study Mascot**: Otomo-chan joins the Focus timer wearing a "必勝" (Certain Victory) headband during study sessions, and sips green tea during breaks.
 - **Anime Student Pass**: Digital Japanese student ID card on the You page with official red Hanko stamp (`認`), barcode, and an instant "Change My Data" button.
@@ -59,11 +68,15 @@ To enable cloud synchronization for v3, run the SQL migrations in order in your 
 2. `supabase/migrations/0002_task_reminders.sql` — Task reminder minutes support.
 3. `supabase/migrations/0003_profiles.sql` — User profiles (name, username, faculty, level, group, section, student code) with user-level RLS.
 4. `supabase/migrations/0004_events.sql` — Personal events table with versioning and soft-delete sync.
+5. `supabase/migrations/0005_profiles_fix.sql` — Backfills and keeps user profiles in sync.
+6. `supabase/migrations/0006_otomo_chan_and_feedback.sql` — Otomo configuration, knowledge, feedback, private attachments, and admin roles.
 
 ---
 
 ## Version History
 
+- **v4.0.0 (Update 4)**: Search and social metadata improvements, sitemap, more frequent PWA update checks, text-only Otomo-chan replies with microphone input retained, verified admin controls, and private feedback attachments.
+- **v3.1.0**: Verified admin controls, private feedback attachments, stronger SEO metadata, and reliable PWA update checks.
 - **v3.0.0 (Major Update 3)**: FoE Level 1 Midterm exam schedule integration with Building 18 room locator, hybrid guest/cloud account system, personal events IndexedDB sync, anime mascot companion & student pass, and multi-step onboarding.
 - **v2.0.0**: Local-first tasks in IndexedDB, three-way merge conflict resolution, outbox sync engine with Supabase, PWA update prompt, and new dark/light palette.
 - **v1.0.0**: Initial release featuring E-JUST timetable viewer, Pomodoro focus timer, section explorer, and multi-language support (English, Japanese, Rōmaji).

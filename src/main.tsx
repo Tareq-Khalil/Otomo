@@ -10,7 +10,20 @@ import { markWaiting, setUpdater } from './lib/update'
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh: markWaiting,
-  onRegisteredSW: (_url, r) => { if (r) setInterval(() => r.update().catch(() => undefined), 3_600_000) }
+  onRegisteredSW: (_url, registration) => {
+    if (!registration) return
+    const checkForUpdate = () => {
+      if (navigator.onLine && document.visibilityState === 'visible') {
+        void registration.update().catch(() => undefined)
+      }
+    }
+    void checkForUpdate()
+    setInterval(checkForUpdate, 15 * 60 * 1000)
+    document.addEventListener('visibilitychange', checkForUpdate)
+  },
+  onRegisterError: error => {
+    console.error('Could not register the Otomo service worker:', error)
+  }
 })
 setUpdater(() => updateSW(true))
 
