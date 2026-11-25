@@ -190,3 +190,49 @@ export async function uploadAttachment(token: string, file: File): Promise<strin
 
   return `feedback_attachments/${fileName}`
 }
+
+const PENDING_FEEDBACK_KEY = 'uh:pending_feedback'
+
+export function getPendingLocalFeedback(): FeedbackSubmission[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_FEEDBACK_KEY) || '[]')
+    return Array.isArray(raw) ? raw : []
+  } catch {
+    return []
+  }
+}
+
+export async function flushPendingFeedback(token: string): Promise<number> {
+  if (!URL || !KEY || !token) return 0
+  const pending = getPendingLocalFeedback()
+  if (pending.length === 0) return 0
+
+  const remaining: FeedbackSubmission[] = []
+  let uploaded = 0
+
+  for (const item of pending) {
+    try {
+      await submitFeedback(token, {
+        type: item.type,
+        subject: item.subject,
+        description: item.description,
+        user_email: item.user_email || undefined,
+        user_name: item.user_name || undefined,
+        attachment_url: item.attachment_url || undefined,
+        contact_pref: item.contact_pref
+      })
+      uploaded++
+    } catch {
+      remaining.push(item)
+    }
+  }
+
+  try {
+    if (remaining.length === 0) localStorage.removeItem(PENDING_FEEDBACK_KEY)
+    else localStorage.setItem(PENDING_FEEDBACK_KEY, JSON.stringify(remaining))
+  } catch {
+    // Ignore storage error
+  }
+
+  return uploaded
+}

@@ -5,7 +5,6 @@ import { Ticket } from '@/components/Ticket'
 import { Tri } from '@/components/Tri'
 import { eventsOn, info, nextClass } from '@/lib/schedule'
 import { Missions } from '@/components/Missions'
-import { JapanesePractice } from '@/components/JapanesePractice'
 import { ProfileCompletion } from '@/components/ProfileCompletion'
 import { useTasks } from '@/lib/tasks'
 import { useEvents } from '@/lib/events'
@@ -62,7 +61,7 @@ export function Home({ go }: { go: (v: View) => void }) {
             <div className="relative">
               <div className="flex items-center justify-between">
                 <span className="label !text-gold">
-                  {nx ? (nx.now ? <Tri r="Ima" en="Happening now" jp="放送中" /> : <Tri r="Tsugi" en="Up next" jp="次回予告" />) : 'Nothing scheduled'}
+                  {nx ? (nx.now ? <Tri r="Ima" en="Happening now" jp="いま" /> : <Tri r="Tsugi" en="Up next" jp="つぎ" />) : 'Nothing scheduled'}
                 </span>
                 <ArrowUpRight size={18} className="text-mute" />
               </div>
@@ -101,7 +100,6 @@ export function Home({ go }: { go: (v: View) => void }) {
               <p className="label mt-1"><Tri r="Shūchū" en="start a focus round" jp="集中" /></p>
             </motion.button>
           </div>
-          <JapanesePractice />
           <Missions go={go} />
         </div>
 
@@ -116,7 +114,7 @@ export function Home({ go }: { go: (v: View) => void }) {
             {today.length === 0 && <p className="label py-6"><Tri r="Jugyō nashi" en="No classes or exams today" jp="授業なし" /></p>}
             {today.map((e, i) => {
               const st = nm >= mins(e.end) ? 'done' : nm >= mins(e.start) ? 'now' : !marked ? (marked = true, 'next') : ''
-              return <Ticket key={e.course + e.start} e={e} state={st} i={i} onClick={() => go('schedule')} />
+              return <Ticket key={e.ownEventId ?? e.own?.id ?? `${e.day}-${e.course}-${e.start}-${i}`} e={e} state={st} i={i} onClick={() => go('schedule')} />
             })}
           </motion.div>
         </div>

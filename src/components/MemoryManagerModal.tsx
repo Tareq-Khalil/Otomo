@@ -41,6 +41,7 @@ export function MemoryManagerModal({ open, owner, onClose }: MemoryManagerModalP
   // Edit memory state
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
+  const [confirmClear, setConfirmClear] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -69,10 +70,13 @@ export function MemoryManagerModal({ open, owner, onClose }: MemoryManagerModalP
   }
 
   const handleDeleteAll = async () => {
-    if (confirm('Delete all stored memories? Otomo-chan will forget your saved study preferences.')) {
-      await deleteAllMemories(owner)
-      await load()
+    if (!confirmClear) {
+      setConfirmClear(true)
+      return
     }
+    await deleteAllMemories(owner)
+    setConfirmClear(false)
+    await load()
   }
 
   const handleSaveEdit = async (id: string) => {
@@ -253,15 +257,22 @@ export function MemoryManagerModal({ open, owner, onClose }: MemoryManagerModalP
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-line px-6 py-3.5 bg-bg/50">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleDeleteAll}
-            className="!text-accent hover:bg-accent/10"
-            disabled={memories.length === 0}
-          >
-            Clear All Memories
-          </Button>
+          {confirmClear ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="accent" onClick={handleDeleteAll}>Confirm clear</Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmClear(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleDeleteAll}
+              className="!text-accent hover:bg-accent/10"
+              disabled={memories.length === 0}
+            >
+              Clear All Memories
+            </Button>
+          )}
           <Button size="sm" variant="line" onClick={onClose}>
             Done
           </Button>

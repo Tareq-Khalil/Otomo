@@ -5,7 +5,7 @@ import { Head } from '@/components/Head'
 import { SyncBadge } from '@/components/SyncBadge'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/dialog'
-import { useApp } from '@/lib/store'
+import { useApp, useNow } from '@/lib/store'
 import { createTask, dueAt, fmtDay, hint, isOverdue, PRIO_RANK, removeTask, resolveConflict, restoreTask, todayStr, toggleTask, updateTask, useTasks, type Priority, type Status, type TaskRec } from '@/lib/tasks'
 import { cn } from '@/lib/utils'
 
@@ -22,7 +22,7 @@ export function Tasks() {
   const [sheet, setSheet] = useState<{ task?: TaskRec; seed?: string } | null>(null)
   const [title, setTitle] = useState('')
   const [undo, setUndo] = useState<string | null>(null)
-  const now = new Date(), today = todayStr(now)
+  const now = useNow(60_000), today = todayStr(now)
 
   useEffect(() => { 
     if (!ready || !hint.open) return

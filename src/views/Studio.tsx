@@ -23,7 +23,7 @@ import { Head } from '@/components/Head'
 import { Button } from '@/components/ui/button'
 import { OtomoCharacter } from '@/components/OtomoCharacter'
 import { useApp } from '@/lib/store'
-import { useSync } from '@/lib/sync'
+import { getAccessToken, useSync } from '@/lib/sync'
 import {
   getConfig,
   DEFAULT_CONFIG,
@@ -51,10 +51,8 @@ interface StudioProps {
   onBack?: () => void
 }
 
-function getStudioToken(): string {
-  const raw = localStorage.getItem('otomo_session') || localStorage.getItem('uh:meta:session')
-  if (!raw) return ''
-  try { return JSON.parse(raw).access as string || '' } catch { return '' }
+async function getStudioToken(): Promise<string> {
+  return (await getAccessToken()) ?? ''
 }
 
 type StudioTab =
@@ -112,42 +110,38 @@ export function Studio({ onBack }: StudioProps) {
   const [newDocFaculty, setNewDocFaculty] = useState('foe')
 
   useEffect(() => {
-    checkDeviceCapability().then(info => setDeviceInfo(info))
+    let active = true
+    checkDeviceCapability().then(info => { if (active) setDeviceInfo(info) })
 
     setIsAdmin(false)
     if (sync.signedIn) {
-      const raw = localStorage.getItem('otomo_session') || localStorage.getItem('uh:meta:session')
-      if (raw) {
-        try {
-          const tok = JSON.parse(raw).access
-          void checkAdminRole(tok).then(admin => {
-            setIsAdmin(admin)
-            if (admin) {
-              void listKnowledgeDocuments(tok).then(docs => {
-                if (docs.length) setKnowledgeDocs(docs)
-              }).catch(() => undefined)
-            }
-          })
-        } catch { }
-      }
+      void getStudioToken().then(tok => {
+        if (!tok || !active) return
+        return checkAdminRole(tok).then(admin => {
+          if (!active) return
+          setIsAdmin(admin)
+          if (admin) {
+            void listKnowledgeDocuments(tok).then(docs => {
+              if (active && docs.length) setKnowledgeDocs(docs)
+            }).catch(() => undefined)
+          }
+        })
+      })
     }
+    return () => { active = false }
   }, [sync.signedIn])
 
   // Load feedbacks when feedback tab is active
   useEffect(() => {
     if (activeTab === 'feedback') {
-      loadFeedbacks()
+      void loadFeedbacks()
     }
   }, [activeTab])
 
   const loadFeedbacks = async () => {
     setLoadingFeedback(true)
     try {
-      const raw = localStorage.getItem('otomo_session') || localStorage.getItem('uh:meta:session')
-      let token = ''
-      if (raw) {
-        try { token = JSON.parse(raw).access } catch { }
-      }
+      const token = await getStudioToken()
 
       if (token) {
         const items = await getAllFeedback(token)
@@ -168,11 +162,7 @@ export function Studio({ onBack }: StudioProps) {
   const handleUpdateFeedback = async () => {
     if (!selectedFb) return
     try {
-      const raw = localStorage.getItem('otomo_session') || localStorage.getItem('uh:meta:session')
-      let token = ''
-      if (raw) {
-        try { token = JSON.parse(raw).access } catch { }
-      }
+      const token = await getStudioToken()
 
       if (token) {
         await updateFeedbackStatus(token, selectedFb.id, updatingStatus, adminReply)
@@ -229,7 +219,7 @@ export function Studio({ onBack }: StudioProps) {
       localStorage.setItem('otomo_published_config', JSON.stringify(published))
     } catch { }
 
-    const token = getStudioToken()
+    const token = await getStudioToken()
     if (isAdmin && token) {
       try {
         const saved = await publishConfiguration(token, published)
@@ -260,7 +250,7 @@ export function Studio({ onBack }: StudioProps) {
     }
 
     if (isAdmin) {
-      const token = getStudioToken()
+      const token = await getStudioToken()
       if (token) {
         try {
           const saved = await createKnowledgeDocument(token, doc)

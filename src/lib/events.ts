@@ -106,6 +106,36 @@ export const removeEvent = (id: string) =>
     await commitEvent({ ...rec, deletedAt: Date.now() })
   })
 
+export const removeAllEvents = () =>
+  evtSerial(async () => {
+    const now = Date.now()
+    for (const ev of await listEvents()) {
+      if (!ev.deletedAt) await commitEvent({ ...ev, deletedAt: now })
+    }
+  })
+
+export const importEvents = (arr: unknown[]) =>
+  evtSerial(async () => {
+    const now = Date.now()
+    for (const x of arr) {
+      const r = x as Partial<EventRec>
+      if (!r || typeof r.id !== 'string' || typeof r.title !== 'string' || !r.title.trim() || !r.date || !r.startTime || !r.endTime) continue
+      if (await getEvent(r.id)) continue
+      await commitEvent({
+        id: r.id,
+        owner: evtOwner,
+        title: r.title.trim().slice(0, 60),
+        date: r.date,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        createdAt: typeof r.createdAt === 'number' ? r.createdAt : now,
+        updatedAt: now,
+        serverVersion: null,
+        deletedAt: null
+      })
+    }
+  })
+
 /** Transfer all local events to a registered user (called at sign-in). */
 export const claimLocalEvents = (uid: string) =>
   evtSerial(async () => {

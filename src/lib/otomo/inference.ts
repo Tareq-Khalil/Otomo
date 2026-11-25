@@ -17,6 +17,7 @@
 import * as webllm from '@mlc-ai/web-llm'
 import type { State, Data } from '@/lib/types'
 import { generateFallbackResponse } from './fallback'
+import { getConfig } from './config'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -356,6 +357,7 @@ export async function generate(options: InferenceOptions): Promise<InferenceResu
           state: options.fallbackContext.state,
           data: options.fallbackContext.data,
           owner: options.fallbackContext.owner,
+          history: options.messages,
           onChunk: options.onChunk,
           signal
         })
@@ -389,12 +391,13 @@ export async function generate(options: InferenceOptions): Promise<InferenceResu
       }))
     ]
 
+    const brain = getConfig().brain
     // Use streaming
     const asyncGenerator = await engine.chat.completions.create({
       messages,
-      temperature: options.temperature ?? 0.7,
-      top_p: options.top_p ?? 0.9,
-      max_tokens: options.maxTokens ?? 1024,
+      temperature: options.temperature ?? brain.temperature ?? 0.7,
+      top_p: options.top_p ?? brain.top_p ?? 0.9,
+      max_tokens: options.maxTokens ?? brain.maxTokens ?? 1024,
       stream: true,
       stream_options: { include_usage: true }
     })
@@ -443,6 +446,7 @@ export async function generate(options: InferenceOptions): Promise<InferenceResu
           state: fallbackContext.state,
           data: fallbackContext.data,
           owner: fallbackContext.owner,
+          history: options.messages,
           onChunk: options.onChunk,
           signal
         })

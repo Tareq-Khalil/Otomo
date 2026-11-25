@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { ChevronLeft, ChevronRight, GraduationCap, MapPin, Plus, Trash2 } from 'lucide-react'
 import { Head } from '@/components/Head'
@@ -108,7 +108,7 @@ export function Schedule({ go }: { go: (v: View) => void }) {
       <div className="grid gap-3 md:grid-cols-2">
         {evs.map((e, i) => (
           <Ticket
-            key={sel.toDateString() + e.course + e.start}
+            key={e.ownEventId ?? e.own?.id ?? `${selIso}-${e.course}-${e.start}-${i}`}
             e={e}
             i={i}
             onClick={() => setDetail(e)}
@@ -196,6 +196,9 @@ export function Schedule({ go }: { go: (v: View) => void }) {
 
 function AddEvent({ open, onClose, date }: { open: boolean; onClose: () => void; date: string }) {
   const [f, setF] = useState({ course: '', date, start: '14:00', end: '15:00' })
+  useEffect(() => {
+    if (open) setF(x => ({ ...x, date }))
+  }, [open, date])
   const bad = !f.course.trim() || mins(f.end) <= mins(f.start)
   const field = 'mt-1 h-11 w-full rounded-md border border-line bg-bg px-3 text-base text-ink'
 

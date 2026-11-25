@@ -12,7 +12,7 @@ const ANIME_QUOTES = [
   { text: 'Remember to take breaks and drink water! ', mood: 'resting' as MascotMood, sfx: 'ほっこり' },
   { text: 'Focus on today’s missions. You can do it! ', mood: 'studying' as MascotMood, sfx: 'よしっ！' },
   { text: 'Your efforts today will bloom like sakura tomorrow! ', mood: 'happy' as MascotMood, sfx: 'キラキラ' },
-  { text: 'Otomo is always here by your side! 供にお供します！', mood: 'welcome' as MascotMood, sfx: 'いつも一緒' }
+  { text: 'Otomo is always here by your side! いつもそばにいますよ！', mood: 'welcome' as MascotMood, sfx: 'いつも一緒' }
 ]
 
 export function AnimeCompanion() {

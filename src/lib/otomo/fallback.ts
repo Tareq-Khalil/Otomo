@@ -2,31 +2,36 @@
  * Otomo-chan Offline Knowledge & Heuristic Intelligence Engine
  *
  * Runs 100% locally with 0 MB download and zero GPU requirement.
- * Used when:
- * 1. WebGPU is unavailable on the device (older phones/laptops)
- * 2. The user has not downloaded a local neural model yet
- * 3. The device has limited memory (under 4 GB)
- *
- * Provides intelligent, personality-infused responses covering:
- * - Student's timetable, current class, and up next
- * - Tasks, assignments, and study priorities
- * - Focus timer controls and Pomodoro status
- * - Academic guidance (math, physics, CS, algorithms)
- * - University procedures and exam preparation tips
- * - Clear guidance when a question needs the downloaded language model
+ * Uses real app tools (schedule, personal events, exams, tasks, focus timer,
+ * E-JUST knowledge), recent conversation history, and Otomo-chan's personality.
  */
 
 import type { State, Data } from '@/lib/types'
 import { executeTool, type ToolContext } from './tools'
+
+interface HistoryMsg {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
 
 interface FallbackParams {
   userMessage: string
   state: State
   data: Data
   owner: string
-  studentName?: string
+  history?: HistoryMsg[]
   onChunk?: (chunk: string, full: string) => void
   signal?: AbortSignal
+}
+
+function getLastAssistantTopic(history: HistoryMsg[]): string {
+  const prev = [...history].reverse().find(m => m.role === 'assistant')?.content.toLowerCase() ?? ''
+  if (prev.includes('binary search')) return 'binary_search'
+  if (prev.includes('derivative')) return 'derivative'
+  if (prev.includes('integral')) return 'integral'
+  if (prev.includes('recursion')) return 'recursion'
+  if (prev.includes('pomodoro')) return 'tasks'
+  return ''
 }
 
 export async function generateFallbackResponse({
@@ -34,6 +39,7 @@ export async function generateFallbackResponse({
   state,
   data,
   owner,
+  history = [],
   onChunk,
   signal
 }: FallbackParams): Promise<string> {
@@ -43,48 +49,119 @@ export async function generateFallbackResponse({
 
   let fullResponse = ''
 
-  // Helper to stream chunks
   const emit = async (text: string) => {
     fullResponse = text
     if (onChunk) {
-      // Simulate natural streaming cadence
       const words = text.split(' ')
       let streamed = ''
       for (const word of words) {
         if (signal?.aborted) break
         streamed += (streamed ? ' ' : '') + word
         onChunk(word + ' ', streamed)
-        await new Promise(r => setTimeout(r, 18))
+        await new Promise(r => setTimeout(r, 12))
       }
     }
   }
 
-  // 1. Timetable / Schedule Queries
+  // 0. Handle short conversational follow-ups using recent history
+  const lastTopic = getLastAssistantTopic(history)
+  if (/^(yes|yeah|yep|sure|ok|okay|please|go ahead|tell me more|example|trace)\b/i.test(query)) {
+    if (lastTopic === 'binary_search') {
+      await emit(
+        `Here is a quick trace on \`arr = [2, 5, 8, 12, 16, 23, 38]\` searching for \`23\`:\n\n` +
+        `1. \`low = 0, high = 6\` → \`mid = 3\` (\`arr[3] = 12 < 23\`) → move \`low = 4\`.\n` +
+        `2. \`low = 4, high = 6\` → \`mid = 5\` (\`arr[5] = 23 == 23\`) → found at index **5** in just 2 steps.`
+      )
+      return fullResponse
+    }
+    if (lastTopic === 'tasks') {
+      await emit(`Head to the **Focus** tab whenever you're ready — 25 minutes on one task beats two hours of staring at the whole list, ${name}.`)
+      return fullResponse
+    }
+  }
+
+  // 1. Create a Task directly when asked ("add task ...", "remind me to ...")
+  const createMatch = userMessage.match(/^(?:please\s+)?(?:add|create|make|new)\s+(?:a\s+)?task(?:\s+to|\s*:)?\s+(.+)$/i)
+    || userMessage.match(/^(?:please\s+)?remind\s+me\s+to\s+(.+)$/i)
+  if (createMatch && createMatch[1]?.trim()) {
+    const rawTitle = createMatch[1].trim()
+    const toolRes = await executeTool('create_task', { title: rawTitle }, ctx)
+    if (toolRes.success && toolRes.data) {
+      const created = toolRes.data as { title: string }
+      await emit(`Done — I added **${created.title}** to your Tasks list, ${name}. One less thing floating around in your head.`)
+      return fullResponse
+    }
+    await emit(`I tried to save that task, but hit a storage issue: ${toolRes.error || 'Unknown error'}.`)
+    return fullResponse
+  }
+
+  // 2. Exam / Midterm / Building 18 Room Queries
+  if (
+    query.includes('exam') ||
+    query.includes('midterm') ||
+    query.includes('building 18') ||
+    query.includes('hall') ||
+    (query.includes('room') && !query.includes('classroom'))
+  ) {
+    if (query.includes('tip') || query.includes('revision') || query.includes('prepare')) {
+      await emit(
+        `Here is a practical midterm revision loop, ${name}:\n\n` +
+        `1. Pick one topic and write down everything you recall **without** notes.\n` +
+        `2. Open your lecture slides and patch only the gaps.\n` +
+        `3. Solve 3–5 past problems timed, without peeking at solutions.\n` +
+        `4. Take a 5-minute break before switching subjects.\n\n` +
+        `Want me to check your upcoming exam dates and Building 18 rooms? Just ask *"What are my midterm exams?"*`
+      )
+      return fullResponse
+    }
+
+    const toolRes = await executeTool('lookup_exams', {}, ctx)
+    if (toolRes.success && toolRes.data) {
+      const examData = toolRes.data as {
+        term?: string
+        building?: string
+        exams: { courseCode: string; courseName: string; date: string; time: string; room: string | null; instructor: string }[]
+      }
+      if (examData.exams.length > 0) {
+        const list = examData.exams
+          .map(e =>
+            `• **${e.courseCode}** (${e.courseName}) — \`${e.date}\` · ${e.time}` +
+            (e.room ? ` · **${examData.building || 'B18'} Room ${e.room}**` : ' · Room by Student ID (set your code in Settings)')
+          )
+          .join('\n')
+        await emit(`Here is your exam schedule${examData.term ? ` (${examData.term})` : ''}, ${name}:\n\n${list}\n\nBring your university ID and arrive 15 minutes early.`)
+        return fullResponse
+      }
+      await emit(`I don't see any exam data loaded for your faculty/level yet, ${name}.`)
+      return fullResponse
+    }
+  }
+
+  // 3. Timetable / Schedule Queries (includes regular classes, exams, and personal events)
   if (
     query.includes('schedule') ||
     query.includes('class') ||
     query.includes('lecture') ||
     query.includes('timetable') ||
-    query.includes('today') && query.includes('what') ||
+    (query.includes('today') && (query.includes('what') || query.includes('have'))) ||
     query.includes('tomorrow') ||
     query.includes('next class')
   ) {
-    const dayMatch = query.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i)
+    const dayMatch = query.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|today|tomorrow)\b/i)
     const isNextClass = query.includes('next class')
-    let targetDay = dayMatch ? dayMatch[1].toLowerCase() : undefined
-    if (!targetDay && (query.includes('today') || query.includes('tomorrow'))) {
-      const requestedDate = new Date()
-      if (query.includes('tomorrow')) requestedDate.setDate(requestedDate.getDate() + 1)
-      targetDay = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][requestedDate.getDay()]
-    }
+    const targetDay = dayMatch ? dayMatch[1].toLowerCase() : (isNextClass ? undefined : undefined)
 
     const toolRes = await executeTool('lookup_schedule', { day: targetDay }, ctx)
     if (!toolRes.success) {
-      await emit(`I couldn't read your timetable: ${toolRes.error || 'the schedule lookup failed'}. Check that your section is set in the app.`)
+      await emit(`I couldn't read your timetable: ${toolRes.error || 'lookup failed'}. Check that your section is set in Settings.`)
       return fullResponse
     }
     if (toolRes.data) {
-      const scheduleData = toolRes.data as { day?: string; events?: { day?: string; course: string; courseName: string; title: string; time: string; room: string; staff: string }[] }
+      const scheduleData = toolRes.data as {
+        day?: string
+        isMidtermWeek?: boolean
+        events?: { day?: string; course: string; courseName: string; title: string; time: string; room: string; staff: string }[]
+      }
       if (scheduleData.events && scheduleData.events.length > 0) {
         let events = scheduleData.events
         if (isNextClass) {
@@ -107,30 +184,29 @@ export async function generateFallbackResponse({
             .slice(0, 1)
             .map(item => item.event)
         }
-        const list = events
-          .map(e => `${e.day ? `**${e.day}:** ` : ''}• **${e.course}** (${e.courseName})\n  ${e.title} · \`${e.time}\` · Room: **${e.room || 'TBA'}**${e.staff ? ` · ${e.staff}` : ''}`)
-          .join('\n\n')
         if (events.length === 0) {
-          await emit(`I couldn't find an upcoming class in your timetable, ${name}. Check that your section is set correctly in the app.`)
+          await emit(`I couldn't find an upcoming class in your timetable, ${name}. Check that your section is set in Settings.`)
           return fullResponse
         }
+        const list = events
+          .map(e =>
+            `${e.day && !scheduleData.day ? `**${e.day}:** ` : ''}• **${e.courseName}** (${e.title})\n  \`${e.time}\`${e.room ? ` · **${e.room}**` : ''}${e.staff ? ` · ${e.staff}` : ''}`
+          )
+          .join('\n\n')
         const period = isNextClass
-          ? 'your next class'
+          ? 'your next scheduled item'
           : scheduleData.day
-            ? `**${scheduleData.day.toUpperCase()}**`
-            : "your section's weekly schedule"
-        await emit(`Here is ${period}, ${name}:\n\n${list}\n\nMake sure to arrive a few minutes early!`)
-        return fullResponse
-      } else {
-        await emit(isNextClass
-          ? `I couldn't find classes in your section's weekly timetable, ${name}. Check that your section is set correctly in the app.`
-          : `You don't have any classes scheduled for that day, ${name}! Take advantage of the free time to catch up on assignments or relax a bit.`)
+            ? `**${scheduleData.day}**`
+            : 'your next 7 days'
+        await emit(`Here is ${period}, ${name}:\n\n${list}`)
         return fullResponse
       }
+      await emit(`Nothing scheduled for ${scheduleData.day || 'that day'}, ${name}. Enjoy the breathing room — or knock out a task early.`)
+      return fullResponse
     }
   }
 
-  // 2. Tasks & Assignments Queries
+  // 4. Tasks & Assignments Queries
   if (
     query.includes('task') ||
     query.includes('todo') ||
@@ -141,112 +217,158 @@ export async function generateFallbackResponse({
   ) {
     const toolRes = await executeTool('lookup_tasks', { status: 'todo' }, ctx)
     if (!toolRes.success) {
-      await emit(`I couldn't read your tasks: ${toolRes.error || 'the task lookup failed'}. Please try again or check the Tasks section.`)
+      await emit(`I couldn't read your tasks: ${toolRes.error || 'lookup failed'}.`)
       return fullResponse
     }
     if (toolRes.data) {
       const taskData = toolRes.data as { count: number; tasks: { title: string; priority: string; dueDate: string | null }[] }
       if (taskData.count > 0) {
         const taskList = taskData.tasks
-          .map(t => `• **${t.title}** ${t.dueDate ? `(Due: ${t.dueDate})` : ''} — *Priority: ${t.priority}*`)
+          .map(t => `• **${t.title}**${t.dueDate ? ` (Due: ${t.dueDate})` : ''} — *${t.priority}*`)
           .join('\n')
-        await emit(`You currently have **${taskData.count}** pending task${taskData.count > 1 ? 's' : ''}, ${name}:\n\n${taskList}\n\nShall we start a 25-minute Pomodoro session to knock one of these out?`)
-        return fullResponse
-      } else {
-        await emit(`Splendid! You have no open tasks right now, ${name}. Everything is clear!`)
+        await emit(
+          `You have **${taskData.count}** pending task${taskData.count > 1 ? 's' : ''}, ${name}:\n\n${taskList}\n\n` +
+          `Tip: You can also tell me *"Add task Review Physics Ch. 3"* and I'll save it for you.`
+        )
         return fullResponse
       }
+      await emit(`Zero open tasks right now, ${name}. Either you're remarkably organized or you haven't added them yet.`)
+      return fullResponse
     }
   }
 
-  // 3. Focus / Pomodoro Timer Queries
+  // 5. Focus / Pomodoro Timer Queries
   if (
     query.includes('focus') ||
     query.includes('pomodoro') ||
     query.includes('timer') ||
-    query.includes('study session') ||
-    query.includes('break')
+    query.includes('study session')
   ) {
     const toolRes = await executeTool('focus_timer_status', {}, ctx)
-    if (!toolRes.success) {
-      await emit(`I couldn't check your focus timer: ${toolRes.error || 'the timer lookup failed'}. You can still check it from the Focus tab.`)
-      return fullResponse
-    }
-    if (toolRes.data) {
+    if (toolRes.success && toolRes.data) {
       const timer = toolRes.data as { status: string; subject?: string; remainingMinutes?: number; paused?: boolean }
       if (timer.status === 'focus') {
-        await emit(`You are currently in a **${timer.subject || 'study'}** focus session with approximately **${timer.remainingMinutes} minutes** remaining${timer.paused ? ' (currently paused)' : ''}. Stay concentrated — you've got this!`)
-        return fullResponse
-      } else if (timer.status === 'break' || timer.status === 'long') {
-        await emit(`You're on a well-deserved break right now (${timer.remainingMinutes} minutes left). Hydrate, stretch, and step away from the screen for a moment!`)
-        return fullResponse
-      } else {
-        await emit(`The focus timer is currently idle. Whenever you are ready to study, head over to the **Focus** tab or let me know what subject we should tackle!`)
+        await emit(`You're in a **${timer.subject || 'study'}** focus round with about **${timer.remainingMinutes} min** left${timer.paused ? ' (paused)' : ''}. Keep going.`)
         return fullResponse
       }
+      if (timer.status === 'break' || timer.status === 'long') {
+        await emit(`You're on a break (${timer.remainingMinutes} min left). Step away from the screen for a minute and hydrate.`)
+        return fullResponse
+      }
+      await emit(`The focus timer is idle right now. Head to the **Focus** tab whenever you want to start a 25-minute round.`)
+      return fullResponse
     }
   }
 
-  // 4. Academic Explanations & Concepts
+  // 6. E-JUST Knowledge Base Queries
   if (
-    query.includes('explain') ||
-    query.includes('how does') ||
-    query.includes('what is') ||
-    query.includes('derivative') ||
-    query.includes('integral') ||
-    query.includes('algorithm') ||
-    query.includes('recursion') ||
-    query.includes('binary search') ||
-    query.includes('study tip') ||
-    query.includes('study technique') ||
-    query.includes('midterm') ||
-    query.includes('exam tip')
+    query.includes('credit') ||
+    query.includes('pass') ||
+    query.includes('grade') ||
+    query.includes('grading') ||
+    query.includes('regulation') ||
+    query.includes('e-just') ||
+    query.includes('ejust')
   ) {
-    if (query.includes('binary search')) {
-      await emit(`**Binary Search** is an efficient $O(\\log n)$ search algorithm for sorted arrays.\n\n### How it works:\n1. Compare the target with the middle element: $mid = \\lfloor(low + high) / 2\\rfloor$.\n2. If $target == arr[mid]$, you found it!\n3. If $target < arr[mid]$, eliminate the right half: $high = mid - 1$.\n4. If $target > arr[mid]$, eliminate the left half: $low = mid + 1$.\n\n### Python Implementation:\n\`\`\`python\ndef binary_search(arr, target):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\`\`\`\nWould you like me to walk through an example trace?`)
-      return fullResponse
-    }
-
-    if (query.includes('derivative')) {
-      await emit(`In calculus, the **derivative** measures the sensitivity to change of a function value with respect to a change in its argument.\n\nFormally defined as the limit of the difference quotient:\n$$\\frac{df}{dx} = \\lim_{h \\to 0} \\frac{f(x + h) - f(x)}{h}$$\n\nGeometrically, it corresponds to the **slope of the tangent line** to the curve $y = f(x)$ at point $x$.\n\nCommon rules to remember:\n• **Power Rule**: $\\frac{d}{dx}[x^n] = n x^{n-1}$\n• **Product Rule**: $(uv)' = u'v + uv'$\n• **Chain Rule**: $\\frac{d}{dx}[f(g(x))] = f'(g(x)) \\cdot g'(x)$`)
-      return fullResponse
-    }
-
-    if (query.includes('integral')) {
-      await emit(`An **integral** adds up a quantity continuously. A definite integral, $$\\int_a^b f(x)\\,dx,$$ represents the signed area under a curve from $a$ to $b$. An antiderivative reverses differentiation: if $F'(x)=f(x)$, then $$\\int f(x)\\,dx=F(x)+C.$$ For example, $$\\int x^2\\,dx=\\frac{x^3}{3}+C.$$`)
-      return fullResponse
-    }
-
-    if (query.includes('recursion')) {
-      await emit(`**Recursion** is when a function solves a problem by calling itself on a smaller version of that problem. Every recursive solution needs:\n\n1. A **base case** that stops the calls.\n2. A **recursive step** that makes progress toward the base case.\n\nFor example, factorial can be defined as $n! = n \\times (n-1)!$, with $0! = 1$ as its base case. Without a base case, recursion continues until the program runs out of stack space.`)
-      return fullResponse
-    }
-
-    if (query.includes('study tip') || query.includes('study technique') || query.includes('midterm') || query.includes('exam tip')) {
-      await emit(`Try this focused revision cycle, ${name}:\n\n1. Pick one course topic and write down what you remember without notes.\n2. Check your notes and correct the gaps.\n3. Solve a few problems without looking at worked examples.\n4. Take a short break, then revisit the mistakes later.\n\nIf you tell me a course name or topic, I can help with a matching concept I know. For specific course content, use your lecture notes as the source of truth.`)
+    const res = await executeTool('query_knowledge', { query }, ctx)
+    if (res.success && res.data) {
+      const docs = (res.data as { documents: { title: string; content: string }[] }).documents
+      const formatted = docs.slice(0, 2).map(d => `### ${d.title}\n${d.content}`).join('\n\n')
+      await emit(formatted)
       return fullResponse
     }
   }
 
-  // 5. Arabic Greeting or Query
-  const isArabic = /[\u0600-\u06FF]/.test(query)
-  if (isArabic) {
-    await emit(`أهلاً بك يا ${name}! أنا أوتومو-تشان، رفيقتك الذكية في الدراسة. يمكنني مساعدتك في جدول المحاضرات، إدارة المهام، التحضير للامتحانات، وشرح المفاهيم الأكاديمية خطوة بخطوة. كيف يمكنني دعمك اليوم؟`)
+  // 7. Academic Explanations & Concepts
+  if (query.includes('binary search')) {
+    await emit(
+      `**Binary Search** is an $O(\\log n)$ search algorithm for **sorted** arrays.\n\n` +
+      `### How it works\n` +
+      `1. Check the middle index: \`mid = (low + high) // 2\`.\n` +
+      `2. If \`arr[mid] == target\`, return \`mid\`.\n` +
+      `3. If \`arr[mid] < target\`, search the right half (\`low = mid + 1\`).\n` +
+      `4. Otherwise search the left half (\`high = mid - 1\`).\n\n` +
+      `\`\`\`python\ndef binary_search(arr, target):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == target:\n            return mid\n        if arr[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\`\`\`\n` +
+      `Want to walk through a quick trace?`
+    )
     return fullResponse
   }
 
-  // 6. Greetings & Casual Inquiries
-  if (
-    /^(hi|hello|hey)\b/.test(query) ||
-    query.includes('konnichiwa') ||
-    query.includes('ohayo')
-  ) {
-    await emit(`Konnichiwa, ${name}! Great to see you. I'm ready to assist with your courses, timetable, tasks, or any subject you're working on. What are we focusing on today?`)
+  if (query.includes('big o') || query.includes('complexity') || query.includes('time complexity')) {
+    await emit(
+      `**Big-O Notation** describes how an algorithm's runtime or memory grows as input size $n$ grows:\n\n` +
+      `• **O(1)** — Constant (array index lookup, hash table average)\n` +
+      `• **O(log n)** — Logarithmic (binary search)\n` +
+      `• **O(n)** — Linear (single loop)\n` +
+      `• **O(n log n)** — Linearithmic (merge sort, quicksort average)\n` +
+      `• **O(n²)** — Quadratic (nested loops, bubble sort)`
+    )
     return fullResponse
   }
 
-  // 7. Be explicit about the limits of this rule-based fallback instead of
-  // implying that it understood an unsupported question.
-  await emit(`I'm in Quick Offline Mode, ${name}. This built-in helper can look up your timetable, tasks, and focus timer, and answer a few common study questions. It doesn't have a full language model for open-ended questions.\n\nTry asking “What classes do I have today?”, “Show my tasks”, “What's my focus timer status?”, or “Explain derivatives”. To chat freely while offline, connect to the internet and download a GPU-compatible model from Model Settings; after its files finish downloading, you can use it without internet.`)
+  if (query.includes('derivative')) {
+    await emit(
+      `A **derivative** measures instantaneous rate of change (slope of the tangent line at $x$):\n\n` +
+      `$$\\frac{df}{dx} = \\lim_{h \\to 0} \\frac{f(x + h) - f(x)}{h}$$\n\n` +
+      `### Core rules\n` +
+      `• **Power Rule:** $(x^n)' = n x^{n-1}$\n` +
+      `• **Product Rule:** $(uv)' = u'v + uv'$\n` +
+      `• **Chain Rule:** $(f(g(x)))' = f'(g(x)) \\cdot g'(x)$`
+    )
+    return fullResponse
+  }
+
+  if (query.includes('integral')) {
+    await emit(
+      `An **integral** accumulates a quantity continuously.\n\n` +
+      `• **Definite integral** $\\int_a^b f(x)\\,dx$ gives the signed area under $f(x)$ from $a$ to $b$.\n` +
+      `• **Antiderivative:** if $F'(x) = f(x)$, then $\\int f(x)\\,dx = F(x) + C$.\n\n` +
+      `Example: $\\int x^2\\,dx = \\frac{x^3}{3} + C$.`
+    )
+    return fullResponse
+  }
+
+  if (query.includes('recursion')) {
+    await emit(
+      `**Recursion** is when a function solves a problem by calling itself on a smaller subproblem.\n\n` +
+      `Every recursive function needs:\n` +
+      `1. A **base case** that stops the recursion.\n` +
+      `2. A **recursive step** that moves closer to the base case.\n\n` +
+      `\`\`\`python\ndef factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n\`\`\``
+    )
+    return fullResponse
+  }
+
+  // 8. Arabic Greeting or Query
+  if (/[\u0600-\u06FF]/.test(query)) {
+    await emit(
+      `أهلاً يا ${name}! أنا أوتومو-تشان. في الوضع السريع بدون إنترنت يمكنني مساعدتك في جدولك الدراسي، المهام (أو إضافة مهمة جديدة)، مواعيد الامتحانات، مؤقت التركيز، وبعض الشروحات السريعة.\n\n` +
+      `جرّب مثلاً: *"What classes do I have today?"* أو *"Show my tasks"* أو حمّل النموذج المحلي من **Model Settings** للدردشة الحرة بالكامل.`
+    )
+    return fullResponse
+  }
+
+  // 9. Greetings & Personality-rich Casual Inquiries
+  if (/^(hi|hello|hey|yo|sup)\b/.test(query) || query.includes('konnichiwa') || query.includes('ohayo') || query.includes('konbanwa')) {
+    await emit(`Konnichiwa, ${name}. What are we tackling today — classes, tasks, exams, or a concept that's refusing to make sense?`)
+    return fullResponse
+  }
+
+  if (query.includes('who are you') || query.includes('your name')) {
+    await emit(`I'm **Otomo-chan** (お供ちゃん) — your study companion inside Otomo. Quietly keeping track of your classes, Building 18 exam rooms, tasks, and focus sessions.`)
+    return fullResponse
+  }
+
+  // 10. Honest boundary for open-ended questions without a loaded WebGPU model
+  await emit(
+    `I'm currently in **Quick Offline Mode**, ${name}. I can check your live schedule, Building 18 exams, tasks (and add new ones), focus timer, and core CS/math topics — ` +
+    `but open-ended questions need a downloaded local model.\n\n` +
+    `Try:\n` +
+    `• *"What classes do I have today?"*\n` +
+    `• *"What are my midterm exams?"*\n` +
+    `• *"Add task Finish lab report"*\n` +
+    `• *"Explain Big-O complexity"*\n\n` +
+    `Or open **Model Settings** in the top bar to load a WebGPU model for full free-form chat.`
+  )
   return fullResponse
 }

@@ -16,10 +16,12 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useApp } from '@/lib/store'
-import { useSync } from '@/lib/sync'
+import { getAccessToken, useSync } from '@/lib/sync'
 import {
   submitFeedback,
   getMyFeedback,
+  getPendingLocalFeedback,
+  flushPendingFeedback,
   validateAttachment,
   uploadAttachment
 } from '@/lib/feedback'
@@ -53,31 +55,26 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
 
   // Load history when opening history tab
   useEffect(() => {
-    if (tab === 'history' && sync.signedIn) {
-      loadHistory()
+    if (tab === 'history') {
+      void loadHistory()
     }
   }, [tab, sync.signedIn])
 
   const loadHistory = async () => {
     setLoadingHistory(true)
+    const localPending = getPendingLocalFeedback()
     try {
-      const rawSession = localStorage.getItem('otomo_session')
-      let token = ''
-      if (rawSession) {
-        try { token = JSON.parse(rawSession).access } catch { }
-      }
-      if (!token) {
-        // Fallback: check session from meta or localStorage
-        const m = localStorage.getItem('uh:meta:session')
-        if (m) token = JSON.parse(m).access
-      }
-
+      const token = await getAccessToken()
       if (token) {
+        await flushPendingFeedback(token).catch(() => 0)
         const items = await getMyFeedback(token)
-        setHistory(items)
+        const stillPending = getPendingLocalFeedback()
+        setHistory([...stillPending, ...items])
+      } else {
+        setHistory(localPending)
       }
     } catch {
-      // Local or offline
+      setHistory(localPending)
     } finally {
       setLoadingHistory(false)
     }
@@ -113,11 +110,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
     try {
       let attachmentUrl: string | undefined = undefined
 
-      let token = ''
-      try {
-        const raw = localStorage.getItem('otomo_session') || localStorage.getItem('uh:meta:session')
-        if (raw) token = JSON.parse(raw).access
-      } catch { }
+      const token = (await getAccessToken()) ?? ''
 
       if (file && token) {
         try {

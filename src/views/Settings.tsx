@@ -9,10 +9,9 @@ import { OtomoCharacter } from '@/components/OtomoCharacter'
 import { FeedbackModal } from '@/components/FeedbackModal'
 import { MemoryManagerModal } from '@/components/MemoryManagerModal'
 import { importTasks, listTasks, removeAllTasks } from '@/lib/tasks'
-import { listEvents } from '@/lib/events'
-import { run } from '@/lib/db'
+import { importEvents, listEvents, removeAllEvents } from '@/lib/events'
 import { useApp } from '@/lib/store'
-import { useSync } from '@/lib/sync'
+import { getAccessToken, useSync } from '@/lib/sync'
 import { checkAdminRole } from '@/lib/feedback'
 
 const KEYS = ['uh:state', 'uh:study']
@@ -29,16 +28,20 @@ export function Settings({ onOpenStudio }: SettingsProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [statusNotice, setStatusNotice] = useState('')
+  const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
+    let active = true
     setIsAdmin(false)
     if (!sync.signedIn) return
-    const raw = localStorage.getItem('otomo_session') || localStorage.getItem('uh:meta:session')
-    if (!raw) return
-    try {
-      const token = JSON.parse(raw).access
-      void checkAdminRole(token).then(setIsAdmin)
-    } catch { }
+    void getAccessToken().then(token => {
+      if (!token || !active) return
+      return checkAdminRole(token).then(admin => {
+        if (active) setIsAdmin(admin)
+      })
+    })
+    return () => { active = false }
   }, [sync.signedIn])
 
   const backup = async () => {
@@ -55,19 +58,16 @@ export function Settings({ onOpenStudio }: SettingsProps) {
 
   const restore = async (f?: File) => {
     if (!f) return
+    setStatusNotice('')
     try {
       const j = JSON.parse(await f.text())
       if (!j || (j.otomo !== 1 && j.otomo !== 2) || typeof j['uh:state'] !== 'object') throw new Error()
       for (const k of KEYS) if (j[k]) localStorage.setItem(k, JSON.stringify(j[k]))
       if (Array.isArray(j.tasks)) await importTasks(j.tasks)
-      if (Array.isArray(j.events)) {
-        await run(['events'], 'readwrite', (t: IDBTransaction) => {
-          for (const ev of j.events) t.objectStore('events').put(ev)
-        })
-      }
+      if (Array.isArray(j.events)) await importEvents(j.events)
       location.reload()
     } catch {
-      alert('That file is not a valid Otomo backup.')
+      setStatusNotice('That file is not a valid Otomo backup.')
     }
   }
 
@@ -169,17 +169,46 @@ export function Settings({ onOpenStudio }: SettingsProps) {
           </Button>
         )}
 
+        {statusNotice && (
+          <p role="alert" className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-xs text-ink">
+            {statusNotice}
+          </p>
+        )}
+
         {/* Reset */}
-        <Button
-          variant="line"
-          className="w-full text-accent hover:bg-accent/10"
-          onClick={() =>
-            confirm('Delete all your tasks and personal events? Synced items will also be removed from your cloud account.') &&
-            (removeAllTasks(), set({ tasks: [], mine: [] }))
-          }
-        >
-          Reset tasks &amp; events
-        </Button>
+        {confirmReset ? (
+          <div className="rounded-2xl border border-accent/40 bg-accent/5 p-4 space-y-3">
+            <p className="text-xs text-ink leading-relaxed">
+              Delete all your tasks and personal events? Synced items will also be removed from your cloud account.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="line" size="sm" className="flex-1" onClick={() => setConfirmReset(false)}>
+                Keep my data
+              </Button>
+              <Button
+                variant="accent"
+                size="sm"
+                className="flex-1"
+                onClick={async () => {
+                  await Promise.all([removeAllTasks(), removeAllEvents()])
+                  set({ tasks: [], mine: [] })
+                  setConfirmReset(false)
+                  setStatusNotice('All tasks and personal events have been cleared.')
+                }}
+              >
+                Confirm reset
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            variant="line"
+            className="w-full text-accent hover:bg-accent/10"
+            onClick={() => setConfirmReset(true)}
+          >
+            Reset tasks &amp; events
+          </Button>
+        )}
       </div>
 
       <footer className="mt-10 border-t border-line pt-5">

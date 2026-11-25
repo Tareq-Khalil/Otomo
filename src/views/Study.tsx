@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { Head } from '@/components/Head'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ const clk = (ms: number) => { const s = Math.ceil(ms / 1000); return `${p2(Math.
 export function Study() {
   const { s, data } = useApp()
   const [st, setSt] = usePersisted<St>('uh:study', init)
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const now = useNow(1000), t = now.getTime(), { run } = st
 
   useEffect(() => {
@@ -94,8 +95,17 @@ export function Study() {
           {['General', ...Object.keys(data.courses)].map(k => <option key={k}>{k}</option>)}
         </select>
         <div className="flex gap-2">
-          <Button variant="accent" className="flex-1" onClick={main}>{!run ? 'Start focus' : brk ? 'Skip break' : run.left !== undefined ? 'Resume' : 'Pause'}</Button>
-          {run?.kind === 'focus' && <Button variant="line" onClick={() => confirm("Cancel this session? The time won't be counted.") && setSt(o => ({ ...o, run: null }))}>Cancel</Button>}
+          <Button variant="accent" className="flex-1" onClick={() => { setConfirmCancel(false); main() }}>{!run ? 'Start focus' : brk ? 'Skip break' : run.left !== undefined ? 'Resume' : 'Pause'}</Button>
+          {run?.kind === 'focus' && (
+            confirmCancel ? (
+              <>
+                <Button variant="line" onClick={() => { setSt(o => ({ ...o, run: null })); setConfirmCancel(false) }} className="text-accent">Confirm</Button>
+                <Button variant="ghost" onClick={() => setConfirmCancel(false)}>Keep</Button>
+              </>
+            ) : (
+              <Button variant="line" onClick={() => setConfirmCancel(true)}>Cancel</Button>
+            )
+          )}
         </div>
       </div>
 

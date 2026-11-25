@@ -5,37 +5,34 @@ import {
   Mic,
   MicOff,
   Square,
-  Sparkles,
   Plus,
   Trash2,
   Edit2,
   Check,
   Search,
   MessageSquare,
-  ChevronDown,
   Download,
   AlertCircle,
-  HelpCircle,
+  RotateCcw,
   X,
   Copy,
   Brain
 } from 'lucide-react'
-import { Head } from '@/components/Head'
 import { Button } from '@/components/ui/button'
 import { OtomoCharacter } from '@/components/OtomoCharacter'
+import { ChatMarkdown } from '@/components/ChatMarkdown'
 import { useApp } from '@/lib/store'
 import { useSync } from '@/lib/sync'
 import {
   createConversation,
   listConversations,
-  getConversation,
   deleteConversation,
   renameConversation,
   addMessage,
   listMessages,
   generateTitle
 } from '@/lib/otomo/conversations'
-import { initConfig } from '@/lib/otomo/config'
+import { initConfig, getConfig } from '@/lib/otomo/config'
 import {
   generate,
   loadModel,
@@ -48,9 +45,9 @@ import {
   type ModelProgress
 } from '@/lib/otomo/inference'
 import { buildSystemPrompt, detectMoodFromResponse } from '@/lib/otomo/personality'
+import { buildLiveAppContext } from '@/lib/otomo/tools'
 import { listActiveMemories, extractMemoryCandidates, createMemory } from '@/lib/otomo/memory'
 import { startListening, stopListening } from '@/lib/otomo/voice/recognition'
-import { getConfig } from '@/lib/otomo/config'
 import type { ChatMessage, Conversation, CharacterExpression, StudentMemory } from '@/lib/types'
 
 function createOpeningGreeting(createdAt: number, studentName?: string): string {
@@ -76,6 +73,10 @@ export function Companion() {
   const [input, setInput] = useState('')
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [editingConvId, setEditingConvId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [uiNotice, setUiNotice] = useState<string | null>(null)
 
   // Character & Interaction State
   const [currentMood, setCurrentMood] = useState<CharacterExpression>('idle')
@@ -97,10 +98,13 @@ export function Companion() {
   )
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // 1. Initial Load: Conversations & Model Status Listener
   useEffect(() => {
-    void loadConversationsList()
+    setActiveConvId(null)
+    setMessages([])
+    void loadConversationsList(true)
     void checkDeviceCapability().then(setDeviceCapability).catch(error => {
       setModelProgress(progress => ({
         ...progress,
@@ -128,10 +132,10 @@ export function Companion() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingText])
 
-  const loadConversationsList = async () => {
+  const loadConversationsList = async (forceReset = false) => {
     const list = await listConversations(owner)
     setConversations(list)
-    if (list.length > 0 && !activeConvId) {
+    if (list.length > 0 && (forceReset || !activeConvId)) {
       setActiveConvId(list[0].id)
     } else if (list.length === 0) {
       // Create initial conversation
@@ -206,9 +210,12 @@ export function Companion() {
 
     try {
       // Gather context
-      await initConfig()
-      const memories: StudentMemory[] = await listActiveMemories(owner)
-      const systemPrompt = buildSystemPrompt(s, memories)
+      const cfg = await initConfig()
+      const [memories, liveCtx] = await Promise.all([
+        listActiveMemories(owner),
+        buildLiveAppContext({ state: s, data, owner }, cfg.tools.enabledTools).catch(() => '')
+      ])
+      const systemPrompt = buildSystemPrompt(s, memories, undefined, liveCtx)
 
       const historyForInference = [...messages, userMsg].map(m => ({
         role: m.role as 'user' | 'assistant' | 'system',
@@ -295,13 +302,13 @@ export function Companion() {
         }
       },
       onError: (err) => {
-        alert(err)
+        setUiNotice(err)
         setIsRecording(false)
         setCurrentMood('idle')
       }
     })
     if (!success) {
-      alert('Speech recognition is not available or supported in this browser.')
+      setUiNotice('Speech recognition is not available or supported in this browser.')
     }
   }
 
@@ -316,6 +323,39 @@ export function Companion() {
     setShowModelBar(true)
     await loadModel(selectedModel)
   }
+
+  const handleCopyMessage = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(cur => (cur === id ? null : cur)), 1600)
+    } catch {
+      setUiNotice('Clipboard access was blocked by your browser.')
+    }
+  }
+
+  const handleRetryFrom = (msgIndex: number) => {
+    if (isGenerating) return
+    const prevUser = [...messages.slice(0, msgIndex)].reverse().find(m => m.role === 'user')
+    if (prevUser) {
+      void handleSend(prevUser.content)
+    }
+  }
+
+  const handleRenameSave = async (id: string) => {
+    const trimmed = editingTitle.trim()
+    if (!trimmed) {
+      setEditingConvId(null)
+      return
+    }
+    await renameConversation(id, trimmed)
+    setConversations(prev => prev.map(c => (c.id === id ? { ...c, title: trimmed } : c)))
+    setEditingConvId(null)
+  }
+
+  const filteredConversations = searchQuery.trim()
+    ? conversations.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : conversations
 
   const activeConv = conversations.find(c => c.id === activeConvId)
 
@@ -454,6 +494,19 @@ export function Companion() {
         )}
       </AnimatePresence>
 
+      {/* ─── Inline Notice Banner ──────────────────────────────────────── */}
+      {uiNotice && (
+        <div role="alert" className="flex items-center justify-between gap-2 border-b border-accent/30 bg-accent/10 px-4 py-2 text-xs text-ink">
+          <span className="flex items-center gap-2">
+            <AlertCircle size={14} className="shrink-0 text-accent" />
+            {uiNotice}
+          </span>
+          <button type="button" onClick={() => setUiNotice(null)} aria-label="Dismiss notice" className="text-mute hover:text-ink">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* ─── Main Chat & Character Stage ───────────────────────────────── */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {/* Messages Scroll Area */}
@@ -483,8 +536,9 @@ export function Companion() {
               </div>
             </div>
           ) : (
-            messages.map(msg => {
+            messages.map((msg, msgIndex) => {
               const isUser = msg.role === 'user'
+              const isErrorMsg = !isUser && msg.expression === 'confused'
               return (
                 <div
                   key={msg.id}
@@ -508,21 +562,38 @@ export function Companion() {
                         {isUser ? 'You' : 'Otomo-chan'}
                       </span>
                       <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                        {isErrorMsg && (
+                          <button
+                            type="button"
+                            onClick={() => handleRetryFrom(msgIndex)}
+                            disabled={isGenerating}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-accent hover:bg-bg/30 disabled:opacity-40"
+                            title="Retry last prompt"
+                            aria-label="Retry last prompt"
+                          >
+                            <RotateCcw size={12} />
+                          </button>
+                        )}
                         <button
-                          onClick={() => navigator.clipboard.writeText(msg.content)}
-                          className="flex h-11 w-11 items-center justify-center rounded-lg text-mute hover:bg-bg/20"
+                          type="button"
+                          onClick={() => void handleCopyMessage(msg.id, msg.content)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-mute hover:bg-bg/20"
                           title="Copy message"
                           aria-label="Copy message"
                         >
-                          <Copy size={12} />
+                          {copiedId === msg.id ? <Check size={12} className="text-accent" /> : <Copy size={12} />}
                         </button>
                       </div>
                     </div>
 
                     {/* Message Content */}
-                    <div className="break-words whitespace-pre-wrap font-sans text-sm leading-relaxed sm:text-base">
-                      {msg.content}
-                    </div>
+                    {isUser ? (
+                      <div className="break-words whitespace-pre-wrap font-sans text-sm leading-relaxed sm:text-base">
+                        {msg.content}
+                      </div>
+                    ) : (
+                      <ChatMarkdown content={msg.content} />
+                    )}
 
                     <p className={`mt-2 font-mono text-[9px] text-right ${isUser ? 'text-surface/50' : 'text-mute'}`}>
                       {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -541,7 +612,7 @@ export function Companion() {
               </div>
               <div className="min-w-0 max-w-[calc(100%-3.5rem)] break-words rounded-3xl rounded-bl-sm border border-line bg-surface p-3 text-sm leading-relaxed shadow-sm sm:max-w-xl sm:p-4 sm:text-base">
                 <span className="label !text-[9px] !text-accent block mb-1">Otomo-chan</span>
-                <p className="break-words whitespace-pre-wrap">{streamingText}</p>
+                <ChatMarkdown content={streamingText} />
                 <span className="inline-block h-3 w-1.5 ml-1 bg-accent animate-pulse" />
               </div>
             </div>
@@ -584,39 +655,106 @@ export function Companion() {
         {/* ─── Conversations Drawer ────────────────────────────────────── */}
         <AnimatePresence>
           {isDrawerOpen && (
-            <motion.div
-              initial={{ x: -280, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -280, opacity: 0 }}
-              className="absolute inset-y-0 left-0 z-40 w-72 border-r border-line bg-surface shadow-2xl flex flex-col"
-            >
-              <div className="flex items-center justify-between border-b border-line p-4">
-                <h3 className="font-display text-sm font-semibold">Saved Chats</h3>
-                <button onClick={() => setIsDrawerOpen(false)} className="rounded p-1 text-mute hover:text-ink">
-                  <X size={16} />
-                </button>
-              </div>
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsDrawerOpen(false)}
+                className="absolute inset-0 z-30 bg-black/30"
+                aria-hidden="true"
+              />
+              <motion.div
+                initial={{ x: -280, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -280, opacity: 0 }}
+                className="absolute inset-y-0 left-0 z-40 w-72 border-r border-line bg-surface shadow-2xl flex flex-col"
+              >
+                <div className="flex items-center justify-between border-b border-line p-4">
+                  <h3 className="font-display text-sm font-semibold">Saved Chats</h3>
+                  <button onClick={() => setIsDrawerOpen(false)} aria-label="Close saved chats" className="rounded p-1 text-mute hover:text-ink">
+                    <X size={16} />
+                  </button>
+                </div>
 
-              {/* Chat List */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-                {conversations.map(conv => (
-                  <div
-                    key={conv.id}
-                    onClick={() => { setActiveConvId(conv.id); setIsDrawerOpen(false) }}
-                    className={`group flex items-center justify-between rounded-xl p-2.5 text-xs cursor-pointer transition-colors ${activeConvId === conv.id ? 'bg-accent/10 text-accent font-semibold' : 'hover:bg-bg text-ink'}`}
-                  >
-                    <span className="truncate flex-1">{conv.title}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteChat(conv.id) }}
-                      className="opacity-0 group-hover:opacity-100 rounded p-1 hover:text-accent transition-opacity"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                {/* Search */}
+                <div className="border-b border-line px-3 py-2">
+                  <div className="relative">
+                    <Search size={13} className="absolute left-2.5 top-2.5 text-mute" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Filter chats…"
+                      aria-label="Filter saved chats"
+                      className="h-8 w-full rounded-lg border border-line bg-bg pl-8 pr-2 text-xs text-ink focus:border-accent focus:outline-none"
+                    />
                   </div>
-                ))}
-              </div>
-            </motion.div>
+                </div>
+
+                {/* Chat List */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+                  {filteredConversations.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-mute">No matching chats.</p>
+                  ) : (
+                    filteredConversations.map(conv => (
+                      <div
+                        key={conv.id}
+                        onClick={() => {
+                          if (editingConvId !== conv.id) {
+                            setActiveConvId(conv.id)
+                            setIsDrawerOpen(false)
+                          }
+                        }}
+                        className={`group flex items-center justify-between gap-1 rounded-xl p-2.5 text-xs cursor-pointer transition-colors ${activeConvId === conv.id ? 'bg-accent/10 text-accent font-semibold' : 'hover:bg-bg text-ink'}`}
+                      >
+                        {editingConvId === conv.id ? (
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingTitle}
+                            onChange={e => setEditingTitle(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') void handleRenameSave(conv.id)
+                              if (e.key === 'Escape') setEditingConvId(null)
+                            }}
+                            onBlur={() => void handleRenameSave(conv.id)}
+                            className="h-7 min-w-0 flex-1 rounded border border-accent bg-bg px-2 text-xs text-ink focus:outline-none"
+                          />
+                        ) : (
+                          <>
+                            <span className="truncate flex-1">{conv.title}</span>
+                            <div className="flex items-center gap-0.5 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                aria-label="Rename chat"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setEditingConvId(conv.id)
+                                  setEditingTitle(conv.title)
+                                }}
+                                className="rounded p-1 text-mute hover:text-ink"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="Delete chat"
+                                onClick={e => { e.stopPropagation(); void handleDeleteChat(conv.id) }}
+                                className="rounded p-1 text-mute hover:text-accent"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>
@@ -639,13 +777,20 @@ export function Companion() {
           </button>
 
           {/* Text Input */}
-          <input
-            type="text"
+          <textarea
+            ref={inputRef}
+            rows={1}
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder={isRecording ? 'Listening to your voice...' : 'Ask Otomo-chan about courses, schedule, tasks, or math...'}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void handleSend()
+              }
+            }}
+            placeholder={isRecording ? 'Listening to your voice...' : 'Ask Otomo-chan about courses, schedule, tasks, or math…'}
             disabled={isGenerating}
-            className="h-12 min-w-0 flex-1 rounded-2xl border border-line bg-bg px-3 font-sans text-base text-ink focus:border-accent focus:outline-none disabled:opacity-50 sm:px-4 sm:text-sm"
+            className="max-h-32 min-h-12 min-w-0 flex-1 resize-none rounded-2xl border border-line bg-bg px-3 py-3 font-sans text-base text-ink focus:border-accent focus:outline-none disabled:opacity-50 sm:px-4 sm:text-sm"
           />
 
           {/* Send / Cancel Button */}

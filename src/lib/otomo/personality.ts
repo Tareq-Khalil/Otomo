@@ -129,7 +129,8 @@ function buildToolsContext(tools: ToolsConfig): string {
 export function buildSystemPrompt(
   state: State,
   memories: StudentMemory[] = [],
-  configOverride?: { identity?: IdentityConfig; personality?: PersonalityConfig; tools?: ToolsConfig }
+  configOverride?: { identity?: IdentityConfig; personality?: PersonalityConfig; tools?: ToolsConfig },
+  liveAppContext?: string
 ): string {
   const config = getConfig()
 
@@ -168,6 +169,10 @@ export function buildSystemPrompt(
   // Tools
   const toolsCtx = buildToolsContext(tools)
   sections.push(`--- ${toolsCtx}`)
+
+  if (liveAppContext?.trim()) {
+    sections.push(`--- Live Student App Data (Use only these exact facts; never invent classes, tasks, or rooms) ---\n${liveAppContext.trim()}`)
+  }
 
   // Important behavior constraints
   sections.push(

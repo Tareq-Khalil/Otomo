@@ -7,7 +7,7 @@ import {
 } from './tasks'
 import {
   claimLocalEvents, countLocalEvents, evtNotify, evtSerial,
-  getEvent, listEventOps, migrateLocalEvents, setEvtOwner,
+  getEvent, listEventOps, listEvents, migrateLocalEvents, setEvtOwner,
   type EventOp, type EventRec
 } from './events'
 import { fetchProfile, upsertProfile, type ProfileInput } from './profile'
@@ -33,23 +33,35 @@ const put = (p: Partial<SyncState>) => { st = { ...st, ...p }; subs.forEach(f =>
 export const useSync = () => useSyncExternalStore(cb => { subs.add(cb); return () => subs.delete(cb) }, () => st)
 async function refreshCounts() {
   if (!session) return put({ pending: 0, failed: 0, conflicts: 0, issues: [] })
-  const [ops, ts, eventOps] = await Promise.all([
+  const [ops, ts, eventOps, evs] = await Promise.all([
     listOps(session.uid),
     listTasks(session.uid),
-    listEventOps(session.uid)
+    listEventOps(session.uid),
+    listEvents(session.uid)
   ])
   const title = new Map(ts.map(t => [t.id, t.title]))
-  put({
-    pending: ops.filter(o => o.status === 'pending').length + eventOps.filter(o => o.status === 'pending').length,
-    failed: ops.filter(o => o.status === 'failed').length + eventOps.filter(o => o.status === 'failed').length,
-    conflicts: ops.filter(o => o.status === 'conflict').length,
-    issues: ops.filter(o => o.status !== 'pending').map(o => ({
+  const evtTitle = new Map(evs.map(e => [e.id, e.title]))
+  const taskIssues = ops
+    .filter(o => o.status !== 'pending')
+    .map(o => ({
       taskId: o.taskId,
       title: title.get(o.taskId) ?? 'Task',
       error: o.status === 'conflict'
         ? 'Edited on another device too: choose which version to keep.'
         : o.error ?? 'Rejected by the server.'
     }))
+  const eventIssues = eventOps
+    .filter(o => o.status === 'failed')
+    .map(o => ({
+      taskId: o.eventId,
+      title: evtTitle.get(o.eventId) ?? 'Personal event',
+      error: o.error ?? 'Rejected by the server.'
+    }))
+  put({
+    pending: ops.filter(o => o.status === 'pending').length + eventOps.filter(o => o.status === 'pending').length,
+    failed: ops.filter(o => o.status === 'failed').length + eventOps.filter(o => o.status === 'failed').length,
+    conflicts: ops.filter(o => o.status === 'conflict').length,
+    issues: [...taskIssues, ...eventIssues]
   })
 }
 // ─── Session ──────────────────────────────────────────────────────────────────
@@ -59,15 +71,40 @@ const toSession = (j: { access_token: string; refresh_token: string; expires_in?
   ({ access: j.access_token, refresh: j.refresh_token, expiresAt: Date.now() + (j.expires_in ?? 3600) * 1000, uid: j.user.id, email: j.user.email ?? '' })
 const auth = (path: string, body: unknown, headers: Record<string, string> = {}) =>
   fetch(`${URL}/auth/v1/${path}`, { method: 'POST', headers: { apikey: KEY!, 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) })
+export interface ConfirmOptions {
+  title: string
+  message: string
+  confirmLabel?: string
+  cancelLabel?: string
+}
+
+type ConfirmHandler = (opts: ConfirmOptions) => Promise<boolean>
+let confirmHandler: ConfirmHandler | null = null
+
+export function registerConfirmHandler(handler: ConfirmHandler): () => void {
+  confirmHandler = handler
+  return () => {
+    if (confirmHandler === handler) confirmHandler = null
+  }
+}
+
+async function askConfirm(opts: ConfirmOptions): Promise<boolean> {
+  if (confirmHandler) return confirmHandler(opts)
+  return window.confirm(opts.message)
+}
+
 async function begin(s: Session) {
   session = s
   await setMeta('session', s)
   const taskCount = await countLocal()
   const eventCount = await countLocalEvents()
   const total = taskCount + eventCount
-  if (total > 0 && confirm(
-    `Add the ${total} item${total > 1 ? 's' : ''} (${taskCount} task${taskCount !== 1 ? 's' : ''}, ${eventCount} event${eventCount !== 1 ? 's' : ''}) made on this device to ${s.email}? If you choose Cancel they stay on this device and reappear when you sign out.`
-  )) {
+  if (total > 0 && await askConfirm({
+    title: 'Move local items to your account?',
+    message: `Add the ${total} item${total > 1 ? 's' : ''} (${taskCount} task${taskCount !== 1 ? 's' : ''}, ${eventCount} event${eventCount !== 1 ? 's' : ''}) made on this device to ${s.email}? If you choose Keep local, they stay on this device and reappear when you sign out.`,
+    confirmLabel: 'Move to account',
+    cancelLabel: 'Keep local'
+  })) {
     await claimLocal(s.uid)
     await claimLocalEvents(s.uid)
   }
@@ -116,8 +153,8 @@ export async function syncProfileToServer(tok: string, uid: string): Promise<voi
   } catch { }
   const emailHandle = session?.email ? session.email.split('@')[0] : 'user'
   const nameToUse = (pending?.name || (typeof localState?.name === 'string' ? localState.name : '') || emailHandle || 'Student').trim().slice(0, 60)
-  let userHandle = (pending?.username || (typeof localState?.username === 'string' ? localState.username : '') || emailHandle).toLowerCase().replace(/[^a-z0-9\_]/g, '').slice(0, 30)
-  if (userHandle.length < 3) userHandle = `user\_${uid.slice(0, 4)}`
+  let userHandle = (pending?.username || (typeof localState?.username === 'string' ? localState.username : '') || emailHandle).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30)
+  if (userHandle.length < 3) userHandle = `user_${uid.slice(0, 4)}`
   let codeToUse = (pending?.code || (typeof localState?.code === 'string' ? localState.code : '') || '120260000').trim().slice(0, 15)
   if (codeToUse.length < 6) codeToUse = '120260000'
   const profileToCreate: ProfileInput = {
@@ -190,7 +227,12 @@ export async function saveProfile(profile: ProfileInput): Promise<string | null>
 }
 export async function signOut(): Promise<boolean> {
   const n = st.pending + st.failed + st.conflicts
-  if (n > 0 && !confirm(`${n} change${n > 1 ? 's' : ''} haven't reached the server yet. They stay on this device but won't upload until you sign in again to the same account. Sign out anyway?`)) return false
+  if (n > 0 && !(await askConfirm({
+    title: 'Unsynced changes on this device',
+    message: `${n} change${n > 1 ? 's' : ''} haven't reached the server yet. They stay on this device but won't upload until you sign in again to the same account. Sign out anyway?`,
+    confirmLabel: 'Sign out anyway',
+    cancelLabel: 'Stay signed in'
+  }))) return false
   try { if (session && navigator.onLine) await fetch(`${URL}/auth/v1/logout?scope=local`, { method: 'POST', headers: { apikey: KEY!, Authorization: `Bearer ${session.access}` } }) } catch { /* offline: local sign-out still happens */ }
   session = null
   await delMeta('session')
@@ -199,6 +241,16 @@ export async function signOut(): Promise<boolean> {
   put({ signedIn: false, email: null, phase: 'local', pending: 0, failed: 0, conflicts: 0, issues: [], profile: null })
   return true
 }
+/** Returns a valid (auto-refreshed) Supabase access token, or null if signed out. */
+export async function getAccessToken(): Promise<string | null> {
+  if (!configured || !session) return null
+  try {
+    return await token()
+  } catch {
+    return null
+  }
+}
+
 async function token(): Promise<string> {
   if (!session) throw new AuthError()
   if (session.expiresAt - 60_000 > Date.now()) return session.access
@@ -488,6 +540,7 @@ async function runSync() {
     await pullTasks(tok, uid)
     await pushEvents(tok, uid)
     await pullEvents(tok, uid)
+    await import('./feedback').then(m => m.flushPendingFeedback(tok)).catch(() => undefined)
     await refreshCounts()
     put({ phase: st.failed || st.conflicts ? 'issue' : 'synced', lastSyncAt: Date.now() })
   } catch (e) {
@@ -518,7 +571,7 @@ export async function startSync() {
   setInterval(() => kick(0), 60_000)
   // Synchronize profile: loads existing row or auto-creates it on Supabase
   if (session) {
-    syncProfileToServer(session.access, session.uid).catch(() => undefined)
+    token().then(tok => syncProfileToServer(tok, session!.uid)).catch(() => undefined)
   }
   await refreshCounts().catch(() => undefined)
   kick(0)

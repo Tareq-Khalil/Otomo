@@ -57,15 +57,15 @@ export function OtomoCharacter({
 
   // Context-specific badge labels
   const badgeMeta: Record<string, { label: string; jp: string; Icon: React.ComponentType<{ size?: number; className?: string }> }> = {
-    studying: { label: 'Studying', jp: '集中中', Icon: BookOpen },
+    studying: { label: 'Studying', jp: '勉強中', Icon: BookOpen },
     resting: { label: 'Resting', jp: '休憩中', Icon: Sparkles },
     thinking: { label: 'Thinking…', jp: '思考中', Icon: Brain },
-    listening: { label: 'Listening…', jp: '傾聴中', Icon: Mic },
+    listening: { label: 'Listening…', jp: '聞いています', Icon: Mic },
     happy: { label: 'Delighted', jp: '嬉しい', Icon: Sparkles },
     confused: { label: 'Puzzled', jp: '疑問', Icon: HelpCircle },
     explaining: { label: 'Explaining', jp: '解説中', Icon: Sparkles },
-    cheering: { label: 'Ganbatte!', jp: 'ファイト', Icon: Sparkles },
-    moody: { label: 'Unimpressed', jp: '不満', Icon: Brain },
+    cheering: { label: 'Ganbatte!', jp: '頑張って！', Icon: Sparkles },
+    moody: { label: 'Unimpressed', jp: '少し不機嫌', Icon: Brain },
     welcome: { label: 'Welcome', jp: 'お供', Icon: Sparkles },
     idle: { label: 'Companion', jp: 'お供ちゃん', Icon: Sparkles }
   }

@@ -17,6 +17,8 @@ import { useReminders } from '@/lib/reminders'
 import { ReminderToasts } from '@/components/ReminderToasts'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WhatsNew } from '@/components/WhatsNew'
+import { JapanesePractice } from '@/components/JapanesePractice'
+import { SyncConfirmDialog } from '@/components/SyncConfirmDialog'
 import { initConfig } from '@/lib/otomo/config'
 
 // Lazy load heavy AI and developer modules so Home and core timetable load instantly
@@ -204,7 +206,9 @@ export default function App() {
         </nav>
         {!onboarded && <Onboarding />}
         {onboarded && <InstallBanner />}
+        {onboarded && <JapanesePractice />}
         <ReminderToasts items={rem.items} dismiss={rem.dismiss} go={setView} />
+        <SyncConfirmDialog />
         <UpdateBanner />
         {onboarded && <WhatsNew />}
       </div>
