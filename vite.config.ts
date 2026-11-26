@@ -81,6 +81,22 @@ runtimeCaching: [
         statuses: [200]
       }
     }
+  },
+  {
+    urlPattern: ({ url }) =>
+      url.origin === self.location.origin &&
+      url.pathname.endsWith('.mjs'),
+    handler: 'CacheFirst',
+    options: {
+      cacheName: 'onnx-wasm-module-v1',
+      expiration: {
+        maxEntries: 10,
+        maxAgeSeconds: 30 * 24 * 60 * 60
+      },
+      cacheableResponse: {
+        statuses: [200]
+      }
+    }
   }
 ]
 

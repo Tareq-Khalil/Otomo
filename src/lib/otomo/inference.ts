@@ -443,7 +443,13 @@ async function loadCpuModelInternal(): Promise<boolean> {
 
     if (engine) await unloadModel()
 
-    const { pipeline } = await import('@huggingface/transformers')
+    const [{ env, pipeline }, { onnxWasmPaths }] = await Promise.all([
+      import('@huggingface/transformers'),
+      import('./onnxWasmAssets')
+    ])
+    const wasmConfig = env.backends.onnx.wasm
+    if (!wasmConfig) throw new Error('The ONNX Runtime WebAssembly backend is unavailable.')
+    wasmConfig.wasmPaths = onnxWasmPaths
     cpuEngine = await pipeline('text-generation', CPU_MODEL_ID, {
       device: 'wasm',
       dtype: 'q4',
