@@ -65,6 +65,22 @@ runtimeCaching: [
         statuses: [200]
       }
     }
+  },
+  {
+    urlPattern: ({ url }) =>
+      url.origin === self.location.origin &&
+      url.pathname.endsWith('.wasm'),
+    handler: 'CacheFirst',
+    options: {
+      cacheName: 'onnx-wasm-v1',
+      expiration: {
+        maxEntries: 10,
+        maxAgeSeconds: 30 * 24 * 60 * 60
+      },
+      cacheableResponse: {
+        statuses: [200]
+      }
+    }
   }
 ]
 
@@ -79,7 +95,10 @@ runtimeCaching: [
           if (id.includes('@mlc-ai/web-llm')) {
             return 'web-llm'
           }
-          if (id.includes('kokoro-js') || id.includes('@huggingface/transformers') || id.includes('onnxruntime')) {
+          if (id.includes('@huggingface/transformers') || id.includes('onnxruntime')) {
+            return 'local-cpu-model'
+          }
+          if (id.includes('kokoro-js')) {
             return 'kokoro-tts'
           }
         }

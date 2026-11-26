@@ -368,7 +368,7 @@ export async function generateFallbackResponse({
     `• *"What are my midterm exams?"*\n` +
     `• *"Add task Finish lab report"*\n` +
     `• *"Explain Big-O complexity"*\n\n` +
-    `Or open **Model Settings** in the top bar to load a WebGPU model for full free-form chat.`
+    `Or open **Model Settings** in the top bar to load the local CPU model (works without WebGPU), connect an API, or load a compatible WebGPU model for full free-form chat.`
   )
   return fullResponse
 }

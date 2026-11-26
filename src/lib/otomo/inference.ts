@@ -6,6 +6,7 @@
  *
  * Architecture:
  * - WebLLM runs in a Web Worker to avoid blocking the main thread
+ * - Transformers.js provides a quantized CPU/WASM path for GPUs with restrictive limits
  * - Model files are cached in the browser (Cache API / IndexedDB) by WebLLM
  * - Supports streaming responses, cancellation, and progress reporting
  * - Falls back gracefully on unsupported/low-memory devices
@@ -15,6 +16,7 @@
  */
 
 import * as webllm from '@mlc-ai/web-llm'
+import type { ProgressInfo, TextGenerationPipeline } from '@huggingface/transformers'
 import type { State, Data } from '@/lib/types'
 import { generateFallbackResponse } from './fallback'
 import { getConfig } from './config'
@@ -38,6 +40,99 @@ export interface ModelProgress {
   totalMB?: number
 }
 
+export interface ApiProviderConfig {
+  preset: 'gemini' | 'groq' | 'openrouter' | 'ollama' | 'custom'
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
+export type ActiveBackend = 'offline' | 'api' | 'webgpu' | 'cpu'
+
+export const CPU_MODEL_ID = 'onnx-community/Qwen3-0.6B-ONNX'
+export const CPU_MODEL_NAME = 'Qwen3 0.6B (CPU / WASM)'
+
+export const API_PRESETS: Record<ApiProviderConfig['preset'], { label: string; baseUrl: string; defaultModel: string; needsKey: boolean; hint: string }> = {
+  gemini: {
+    label: 'Google Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    defaultModel: 'gemini-2.5-flash',
+    needsKey: true,
+    hint: 'Free tier key from aistudio.google.com'
+  },
+  groq: {
+    label: 'Groq (Fast)',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    defaultModel: 'llama-3.3-70b-versatile',
+    needsKey: true,
+    hint: 'Free tier key from console.groq.com'
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
+    needsKey: true,
+    hint: 'Supports free & paid models at openrouter.ai'
+  },
+  ollama: {
+    label: 'Local Ollama',
+    baseUrl: 'http://localhost:11434/v1',
+    defaultModel: 'qwen2.5:3b',
+    needsKey: false,
+    hint: 'Runs locally on your PC (set OLLAMA_ORIGINS=*)'
+  },
+  custom: {
+    label: 'Custom OpenAI-Compatible',
+    baseUrl: '',
+    defaultModel: '',
+    needsKey: false,
+    hint: 'Any /v1/chat/completions compatible endpoint'
+  }
+}
+
+const PROVIDER_STORAGE_KEY = 'otomo:ai-provider-v1'
+
+export interface StoredProviderSettings {
+  backend: ActiveBackend
+  api: ApiProviderConfig
+}
+
+export function loadProviderSettings(): StoredProviderSettings {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PROVIDER_STORAGE_KEY) ?? 'null')
+    if (raw && typeof raw === 'object' && raw.api) {
+      return {
+        backend: raw.backend === 'api' || raw.backend === 'webgpu' || raw.backend === 'cpu' ? raw.backend : 'offline',
+        api: {
+          preset: raw.api.preset in API_PRESETS ? raw.api.preset : 'gemini',
+          baseUrl: typeof raw.api.baseUrl === 'string' ? raw.api.baseUrl : API_PRESETS.gemini.baseUrl,
+          apiKey: typeof raw.api.apiKey === 'string' ? raw.api.apiKey : '',
+          model: typeof raw.api.model === 'string' ? raw.api.model : API_PRESETS.gemini.defaultModel
+        }
+      }
+    }
+  } catch {
+    // Ignore corrupt storage
+  }
+  return {
+    backend: 'offline',
+    api: {
+      preset: 'gemini',
+      baseUrl: API_PRESETS.gemini.baseUrl,
+      apiKey: '',
+      model: API_PRESETS.gemini.defaultModel
+    }
+  }
+}
+
+export function saveProviderSettings(settings: StoredProviderSettings): void {
+  try {
+    localStorage.setItem(PROVIDER_STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // Ignore storage error
+  }
+}
+
 export interface InferenceOptions {
   systemPrompt: string
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[]
@@ -47,6 +142,8 @@ export interface InferenceOptions {
   onChunk?: (chunk: string, full: string) => void
   signal?: AbortSignal
   fallbackContext?: { state: State; data: Data; owner: string }
+  backendOverride?: ActiveBackend
+  apiConfig?: ApiProviderConfig
 }
 
 export interface InferenceResult {
@@ -148,25 +245,25 @@ export const MODEL_CATALOG: ModelInfo[] = [
     id: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
     name: 'SmolLM2 360M',
     size: '~200 MB',
-    description: 'Extremely lightweight with limited reasoning. Still depends on browser and GPU support.',
+    description: 'Extremely lightweight WebGPU model. Requires 32 KB GPU workgroup storage.',
     recommended: false,
     minRAM: '2 GB',
-    minWorkgroupStorageSize: 0
+    minWorkgroupStorageSize: 32768
   },
   {
     id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
     name: 'Qwen 2.5 (0.5B)',
     size: '~350 MB',
-    description: 'Tiny but capable. Best balance for 4-8 GB devices. Good reasoning for its size.',
+    description: 'Compact WebGPU model for 4–8 GB devices. Requires 32 KB GPU workgroup storage.',
     recommended: true,
     minRAM: '4 GB',
-    minWorkgroupStorageSize: 0
+    minWorkgroupStorageSize: 32768
   },
   {
     id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
     name: 'Qwen 2.5 (1.5B)',
     size: '~1 GB',
-    description: 'Better reasoning and longer responses. Needs 8 GB+ RAM and a GPU adapter with at least 32 KB workgroup storage.',
+    description: 'Better reasoning and longer responses. Needs 8 GB+ RAM and 32 KB GPU workgroup storage.',
     recommended: false,
     minRAM: '8 GB',
     minWorkgroupStorageSize: 32768
@@ -177,6 +274,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
 
 let engine: webllm.MLCEngine | null = null
 let loadedModel: string | null = null
+let cpuEngine: TextGenerationPipeline | null = null
 let modelLoad: Promise<boolean> | null = null
 let modelLoadId: string | null = null
 let currentStatus: ModelProgress = {
@@ -200,6 +298,10 @@ export function onStatusChange(fn: (p: ModelProgress) => void): () => void {
 
 export function getModelStatus(): ModelProgress {
   return currentStatus
+}
+
+export function isCpuModelLoaded(): boolean {
+  return cpuEngine !== null
 }
 
 // ─── Model Loading ─────────────────────────────────────────────────────────
@@ -250,9 +352,19 @@ async function loadModelInternal(modelId: string): Promise<boolean> {
       updateStatus({
         status: 'error',
         progress: 0,
-        text: `${model.name} needs ${model.minWorkgroupStorageSize / 1024} KB of GPU workgroup storage, but this adapter supports only ${Math.floor(capability.maxComputeWorkgroupStorageSize / 1024)} KB. Choose a smaller model such as Qwen 2.5 (0.5B).`
+        text: `${model.name} needs ${model.minWorkgroupStorageSize / 1024} KB of GPU workgroup storage, but this adapter supports only ${Math.floor(capability.maxComputeWorkgroupStorageSize / 1024)} KB. Use the Local CPU (WASM) model instead; it does not require WebGPU.`
       })
       return false
+    }
+
+    if (cpuEngine) {
+      const previousCpuEngine = cpuEngine
+      cpuEngine = null
+      try {
+        await previousCpuEngine.dispose()
+      } catch (error) {
+        console.warn('Could not unload the previous CPU AI model cleanly:', error)
+      }
     }
 
     // Release any previous engine before replacing it, including a failed reload.
@@ -298,6 +410,103 @@ async function loadModelInternal(modelId: string): Promise<boolean> {
   }
 }
 
+export function loadCpuModel(): Promise<boolean> {
+  if (modelLoad) {
+    if (modelLoadId === CPU_MODEL_ID) return modelLoad
+    return modelLoad.then(() => loadCpuModel())
+  }
+
+  if (cpuEngine) {
+    updateStatus({ status: 'ready', progress: 100, text: `${CPU_MODEL_NAME} ready` })
+    return Promise.resolve(true)
+  }
+
+  const pending = loadCpuModelInternal()
+  modelLoad = pending
+  modelLoadId = CPU_MODEL_ID
+  return pending.finally(() => {
+    if (modelLoad === pending) {
+      modelLoad = null
+      modelLoadId = null
+    }
+  })
+}
+
+async function loadCpuModelInternal(): Promise<boolean> {
+  if (typeof window === 'undefined') {
+    updateStatus({ status: 'unsupported', progress: 0, text: 'The local CPU model requires a browser.' })
+    return false
+  }
+
+  try {
+    updateStatus({ status: 'checking', progress: 0, text: 'Preparing the local CPU model...' })
+
+    if (engine) await unloadModel()
+
+    const { pipeline } = await import('@huggingface/transformers')
+    cpuEngine = await pipeline('text-generation', CPU_MODEL_ID, {
+      device: 'wasm',
+      dtype: 'q4',
+      progress_callback: (progress: ProgressInfo) => {
+        if (progress.status === 'ready') {
+          updateStatus({ status: 'loading', progress: 99, text: 'Initializing local CPU model...' })
+          return
+        }
+
+        if (progress.status === 'progress' || progress.status === 'progress_total') {
+          const percent = Math.round(progress.progress)
+          updateStatus({
+            status: 'downloading',
+            progress: percent,
+            text: `Downloading local CPU model${'file' in progress ? `: ${progress.file}` : ''} (${percent}%)`,
+            downloadedMB: Math.round(progress.loaded / 1_000_000),
+            totalMB: Math.round(progress.total / 1_000_000)
+          })
+          return
+        }
+
+        if (progress.status === 'download') {
+          updateStatus({
+            status: 'downloading',
+            progress: 0,
+            text: `Downloading local CPU model: ${progress.file}`
+          })
+        }
+      }
+    })
+
+    updateStatus({ status: 'ready', progress: 100, text: `${CPU_MODEL_NAME} ready` })
+    return true
+  } catch (error) {
+    cpuEngine = null
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    updateStatus({
+      status: 'error',
+      progress: 0,
+      text: `Could not load ${CPU_MODEL_NAME}: ${message}`
+    })
+    return false
+  }
+}
+
+export async function unloadCpuModel(): Promise<void> {
+  if (!cpuEngine) return
+
+  const currentEngine = cpuEngine
+  cpuEngine = null
+  try {
+    await currentEngine.dispose()
+  } catch (error) {
+    updateStatus({
+      status: 'error',
+      progress: 0,
+      text: `Could not unload the local CPU model: ${error instanceof Error ? error.message : 'Unknown error'}`
+    })
+    throw error
+  }
+  updateStatus({ status: 'idle', progress: 0, text: 'Model unloaded' })
+}
+
 export async function unloadModel(): Promise<void> {
   if (engine) {
     const currentEngine = engine
@@ -332,6 +541,177 @@ export function cancelInference(): void {
   }
 }
 
+async function generateViaApi(
+  options: InferenceOptions,
+  api: ApiProviderConfig,
+  signal: AbortSignal
+): Promise<InferenceResult> {
+  const baseUrl = api.baseUrl.trim().replace(/\/$/, '')
+  if (!baseUrl || !api.model.trim()) {
+    throw new Error('API endpoint URL and model name are required.')
+  }
+  const presetInfo = API_PRESETS[api.preset]
+  if (presetInfo.needsKey && !api.apiKey.trim()) {
+    throw new Error(`An API key is required for ${presetInfo.label}.`)
+  }
+
+  const brain = getConfig().brain
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (api.apiKey.trim()) {
+    headers['Authorization'] = `Bearer ${api.apiKey.trim()}`
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers,
+    signal,
+    body: JSON.stringify({
+      model: api.model.trim(),
+      messages: [
+        { role: 'system', content: options.systemPrompt },
+        ...options.messages
+      ],
+      temperature: options.temperature ?? brain.temperature ?? 0.7,
+      top_p: options.top_p ?? brain.top_p ?? 0.9,
+      max_tokens: options.maxTokens ?? brain.maxTokens ?? 1024,
+      stream: true
+    })
+  })
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string }
+    throw new Error(errBody.error?.message || errBody.message || `API returned HTTP ${res.status}`)
+  }
+
+  const contentType = res.headers.get('content-type') || ''
+  if (!contentType.includes('text/event-stream') || !res.body) {
+    const json = await res.json() as { choices?: { message?: { content?: string } }[] }
+    const text = json.choices?.[0]?.message?.content || ''
+    if (text) options.onChunk?.(text, text)
+    return { content: text, finishReason: 'stop' }
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let fullContent = ''
+
+  while (true) {
+    if (signal.aborted) {
+      await reader.cancel().catch(() => undefined)
+      return { content: fullContent, finishReason: 'cancelled' }
+    }
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data:')) continue
+      const payload = trimmed.slice(5).trim()
+      if (payload === '[DONE]') {
+        return { content: fullContent, finishReason: 'stop' }
+      }
+      try {
+        const parsed = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] }
+        const delta = parsed.choices?.[0]?.delta?.content
+        if (delta) {
+          fullContent += delta
+          options.onChunk?.(delta, fullContent)
+        }
+      } catch {
+        // Ignore partial SSE JSON
+      }
+    }
+  }
+
+  return { content: fullContent, finishReason: 'stop' }
+}
+
+async function generateViaCpu(
+  options: InferenceOptions,
+  signal: AbortSignal
+): Promise<InferenceResult> {
+  if (signal.aborted) return { content: '', finishReason: 'cancelled' }
+
+  if (!cpuEngine) {
+    return {
+      content: `The local CPU model is not loaded yet. Open Model Settings and load ${CPU_MODEL_NAME}.`,
+      finishReason: 'error'
+    }
+  }
+
+  const brain = getConfig().brain
+  const temperature = options.temperature ?? brain.temperature ?? 0.7
+  let fullContent = ''
+  const streamer = new (await import('@huggingface/transformers')).TextStreamer(cpuEngine.tokenizer, {
+    skip_prompt: true,
+    skip_special_tokens: true,
+    token_callback_function: () => {
+      if (signal.aborted) throw new Error('Inference cancelled')
+    },
+    callback_function: text => {
+      if (signal.aborted) return
+      fullContent += text
+      options.onChunk?.(text, fullContent)
+    }
+  })
+
+  const messages = [
+    { role: 'system' as const, content: options.systemPrompt },
+    ...options.messages.map(message => ({ role: message.role, content: message.content }))
+  ]
+
+  const result = await cpuEngine(messages, {
+    max_new_tokens: options.maxTokens ?? brain.maxTokens ?? 512,
+    do_sample: temperature > 0,
+    temperature,
+    top_p: options.top_p ?? brain.top_p ?? 0.9,
+    streamer
+  })
+
+  if (signal.aborted) return { content: '', finishReason: 'cancelled' }
+
+  const generated = result[0]?.generated_text
+  const lastMessage = Array.isArray(generated) ? generated.at(-1) : undefined
+  const content = fullContent.trim() ||
+    (lastMessage && typeof lastMessage.content === 'string' ? lastMessage.content : '')
+
+  return { content, finishReason: 'stop' }
+}
+
+export async function testApiConnection(api: ApiProviderConfig): Promise<{ ok: boolean; message: string }> {
+  const baseUrl = api.baseUrl.trim().replace(/\/$/, '')
+  if (!baseUrl || !api.model.trim()) return { ok: false, message: 'Enter both a base URL and model name.' }
+  const presetInfo = API_PRESETS[api.preset]
+  if (presetInfo.needsKey && !api.apiKey.trim()) return { ok: false, message: `Enter your ${presetInfo.label} API key.` }
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (api.apiKey.trim()) headers['Authorization'] = `Bearer ${api.apiKey.trim()}`
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: api.model.trim(),
+        messages: [{ role: 'user', content: 'Reply with OK.' }],
+        max_tokens: 8,
+        stream: false
+      })
+    })
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as { error?: { message?: string }; message?: string }
+      return { ok: false, message: errBody.error?.message || errBody.message || `HTTP ${res.status}` }
+    }
+    return { ok: true, message: `Connected to ${api.model.trim()}!` }
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : 'Network error' }
+  }
+}
+
 export async function generate(options: InferenceOptions): Promise<InferenceResult> {
   cancelInference()
   const controller = new AbortController()
@@ -348,7 +728,80 @@ export async function generate(options: InferenceOptions): Promise<InferenceResu
     if (activeAbort === controller) activeAbort = null
   }
 
-  if (!engine || currentStatus.status !== 'ready') {
+  const stored = loadProviderSettings()
+  const backend = options.backendOverride ?? stored.backend
+  const apiCfg = options.apiConfig ?? stored.api
+
+  if (backend === 'api') {
+    try {
+      return await generateViaApi(options, apiCfg, signal)
+    } catch (err) {
+      if (signal.aborted) return { content: '', finishReason: 'cancelled' }
+      const message = err instanceof Error ? err.message : 'API request failed'
+      if (options.fallbackContext) {
+        const lastUserMsg = [...options.messages].reverse().find(m => m.role === 'user')?.content || ''
+        try {
+          const fallbackText = await generateFallbackResponse({
+            userMessage: lastUserMsg,
+            state: options.fallbackContext.state,
+            data: options.fallbackContext.data,
+            owner: options.fallbackContext.owner,
+            history: options.messages,
+            onChunk: options.onChunk,
+            signal
+          })
+          return {
+            content: `Cloud/API request failed (${message}), so I switched to Quick Offline Mode for this reply:\n\n${fallbackText}`,
+            finishReason: 'stop'
+          }
+        } catch {
+          // Fall through to error
+        }
+      }
+      return { content: `API error: ${message}`, finishReason: 'error' }
+    } finally {
+      cleanup()
+    }
+  }
+
+  if (backend === 'cpu') {
+    try {
+      return await generateViaCpu(options, signal)
+    } catch (error) {
+      if (signal.aborted) return { content: '', finishReason: 'cancelled' }
+
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      updateStatus({ status: 'error', progress: 0, text: `Local CPU response failed: ${message}` })
+      if (options.fallbackContext) {
+        const lastUserMsg = [...options.messages].reverse().find(item => item.role === 'user')?.content || ''
+        try {
+          const fallbackText = await generateFallbackResponse({
+            userMessage: lastUserMsg,
+            state: options.fallbackContext.state,
+            data: options.fallbackContext.data,
+            owner: options.fallbackContext.owner,
+            history: options.messages,
+            onChunk: options.onChunk,
+            signal
+          })
+          return {
+            content: `The local CPU model failed (${message}), so I switched to Quick Offline Mode for this reply:\n\n${fallbackText}`,
+            finishReason: 'stop'
+          }
+        } catch (fallbackError) {
+          return {
+            content: `The local CPU model failed: ${message}\nThe offline companion also failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`,
+            finishReason: 'error'
+          }
+        }
+      }
+      return { content: `The local CPU model failed: ${message}`, finishReason: 'error' }
+    } finally {
+      cleanup()
+    }
+  }
+
+  if (backend === 'offline' || !engine || currentStatus.status !== 'ready') {
     if (options.fallbackContext) {
       const lastUserMsg = [...options.messages].reverse().find(m => m.role === 'user')?.content || ''
       try {
@@ -475,4 +928,5 @@ export async function generate(options: InferenceOptions): Promise<InferenceResu
 export async function resetEngine(): Promise<void> {
   cancelInference()
   await unloadModel()
+  await unloadCpuModel()
 }

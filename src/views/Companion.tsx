@@ -36,12 +36,22 @@ import { initConfig, getConfig } from '@/lib/otomo/config'
 import {
   generate,
   loadModel,
+  loadCpuModel,
   onStatusChange,
   getModelStatus,
+  getLoadedModel,
+  isCpuModelLoaded,
   cancelInference,
   MODEL_CATALOG,
+  CPU_MODEL_NAME,
+  API_PRESETS,
+  loadProviderSettings,
+  saveProviderSettings,
+  testApiConnection,
   checkWebGPUSupport,
   checkDeviceCapability,
+  type ActiveBackend,
+  type ApiProviderConfig,
   type ModelProgress
 } from '@/lib/otomo/inference'
 import { buildSystemPrompt, detectMoodFromResponse } from '@/lib/otomo/personality'
@@ -85,17 +95,47 @@ export function Companion() {
   const [streamingText, setStreamingText] = useState('')
 
   // Model & Inference Engine State
+  const [providerSettings, setProviderSettings] = useState(loadProviderSettings)
+  const [apiTestStatus, setApiTestStatus] = useState<{ ok: boolean; message: string } | null>(null)
+  const [testingApi, setTestingApi] = useState(false)
   const [modelProgress, setModelProgress] = useState<ModelProgress>(getModelStatus())
   const [selectedModel, setSelectedModel] = useState('Qwen2.5-0.5B-Instruct-q4f16_1-MLC')
   const [showModelBar, setShowModelBar] = useState(false)
   const [deviceCapability, setDeviceCapability] = useState<Awaited<ReturnType<typeof checkDeviceCapability>> | null>(null)
   const gpuSupported = checkWebGPUSupport().supported
+  const modelLoadBusy = ['checking', 'downloading', 'loading'].includes(modelProgress.status)
+  const webGpuModelReady = modelProgress.status === 'ready' && getLoadedModel() === selectedModel
+  const cpuModelReady = isCpuModelLoaded()
+  const cpuModelError = ['error', 'unsupported'].includes(modelProgress.status) && (
+    modelProgress.text.startsWith(`Could not load ${CPU_MODEL_NAME}`) ||
+    modelProgress.text.startsWith('The local CPU model') ||
+    modelProgress.text.startsWith('Local CPU response failed')
+  )
   const selectedModelInfo = MODEL_CATALOG.find(model => model.id === selectedModel)
   const selectedModelIncompatible = Boolean(
     selectedModelInfo &&
     deviceCapability?.maxComputeWorkgroupStorageSize !== undefined &&
     deviceCapability.maxComputeWorkgroupStorageSize < selectedModelInfo.minWorkgroupStorageSize
   )
+
+  const updateProvider = (next: { backend?: ActiveBackend; api?: Partial<ApiProviderConfig> }) => {
+    setProviderSettings(prev => {
+      const merged = {
+        backend: next.backend ?? prev.backend,
+        api: next.api ? { ...prev.api, ...next.api } : prev.api
+      }
+      saveProviderSettings(merged)
+      return merged
+    })
+  }
+
+  const handleTestApi = async () => {
+    setTestingApi(true)
+    setApiTestStatus(null)
+    const result = await testApiConnection(providerSettings.api)
+    setApiTestStatus(result)
+    setTestingApi(false)
+  }
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -226,6 +266,8 @@ export function Companion() {
       const result = await generate({
         systemPrompt,
         messages: historyForInference,
+        backendOverride: providerSettings.backend,
+        apiConfig: providerSettings.api,
         onChunk: (_chunk, full) => {
           accumulated = full
           setStreamingText(full)
@@ -321,7 +363,16 @@ export function Companion() {
   // 6. Load Local WebLLM Model
   const handleDownloadModel = async () => {
     setShowModelBar(true)
-    await loadModel(selectedModel)
+    const ok = await loadModel(selectedModel)
+    if (ok) {
+      updateProvider({ backend: 'webgpu' })
+    }
+  }
+
+  const handleLoadCpuModel = async () => {
+    setShowModelBar(true)
+    const ok = await loadCpuModel()
+    if (ok) updateProvider({ backend: 'cpu' })
   }
 
   const handleCopyMessage = async (id: string, text: string) => {
@@ -378,7 +429,15 @@ export function Companion() {
             <p className="label flex min-w-0 items-center gap-1.5 !text-[9px] !tracking-wider">
               <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               <span className="hidden truncate min-[380px]:inline">
-                {modelProgress.status === 'ready' ? 'Neural WebGPU Active' : 'Quick Offline Mode'}
+                {providerSettings.backend === 'api'
+                  ? `API · ${providerSettings.api.model || API_PRESETS[providerSettings.api.preset].label}`
+                  : providerSettings.backend === 'cpu' && cpuModelReady
+                    ? 'Local CPU Model Active'
+                    : providerSettings.backend === 'cpu'
+                      ? 'Local CPU Model · Load Needed'
+                      : providerSettings.backend === 'webgpu' && webGpuModelReady
+                        ? 'Neural WebGPU Active'
+                        : 'Quick Offline Mode'}
               </span>
             </p>
           </div>
@@ -394,7 +453,17 @@ export function Companion() {
             className="flex h-11 w-11 items-center justify-center gap-1.5 rounded-xl border border-line bg-bg font-mono text-xs text-mute transition-colors hover:border-ink xl:w-auto xl:px-2.5"
           >
             <Brain size={14} className="text-accent" />
-            <span className="hidden xl:inline">{modelProgress.status === 'ready' ? 'Neural Ready' : 'Model Settings'}</span>
+            <span className="hidden xl:inline">
+              {providerSettings.backend === 'api'
+                ? 'AI: API'
+                : providerSettings.backend === 'cpu' && cpuModelReady
+                  ? 'CPU Ready'
+                  : providerSettings.backend === 'cpu'
+                    ? 'Load CPU Model'
+                    : providerSettings.backend === 'webgpu' && webGpuModelReady
+                      ? 'Neural Ready'
+                      : 'AI Settings'}
+            </span>
           </button>
 
           <Button
@@ -410,85 +479,249 @@ export function Companion() {
         </div>
       </div>
 
-      {/* ─── Model Loading Bar ─────────────────────────────────────────── */}
+      {/* ─── AI Backend & Model Settings Bar ───────────────────────────── */}
       <AnimatePresence>
         {showModelBar && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-b border-line bg-bg p-3.5 space-y-2.5 overflow-hidden"
+            className="border-b border-line bg-bg p-3.5 space-y-3 overflow-hidden"
           >
-            <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="font-mono font-semibold">Local AI Model:</span>
-                <select
-                  value={selectedModel}
-                  onChange={e => setSelectedModel(e.target.value)}
-                  disabled={['checking', 'downloading', 'loading'].includes(modelProgress.status)}
-                  className="min-w-0 max-w-full rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
+            {/* Mode Switcher */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(
+                [
+                  { id: 'offline', label: 'Quick Offline (0 MB)' },
+                  { id: 'api', label: 'Cloud / Local API' },
+                  { id: 'cpu', label: 'Local CPU (WASM)' },
+                  { id: 'webgpu', label: 'Browser WebGPU' }
+                ] as const
+              ).map(mode => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => updateProvider({ backend: mode.id })}
+                  className={`rounded-xl border px-3 py-1.5 font-mono text-[11px] transition-colors ${
+                    providerSettings.backend === mode.id
+                      ? 'border-accent bg-accent text-white font-semibold'
+                      : 'border-line bg-surface text-mute hover:text-ink'
+                  }`}
                 >
-                  {MODEL_CATALOG.map(m => (
-                    <option
-                      key={m.id}
-                      value={m.id}
-                      disabled={Boolean(
-                        deviceCapability?.maxComputeWorkgroupStorageSize !== undefined &&
-                        deviceCapability.maxComputeWorkgroupStorageSize < m.minWorkgroupStorageSize
-                      )}
-                    >
-                      {m.name} ({m.size})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {modelProgress.status !== 'ready' && (
-                <Button
-                  size="sm"
-                  variant="accent"
-                  onClick={handleDownloadModel}
-                  disabled={!gpuSupported || selectedModelIncompatible || ['checking', 'downloading', 'loading'].includes(modelProgress.status)}
-                >
-                  <Download size={12} />
-                  {!gpuSupported
-                    ? 'Unavailable'
-                    : ['checking', 'downloading', 'loading'].includes(modelProgress.status)
-                      ? 'Loading…'
-                      : 'Load Model'}
-                </Button>
-              )}
+                  {mode.label}
+                </button>
+              ))}
             </div>
 
-            {selectedModelIncompatible && selectedModelInfo && (
-              <p role="status" className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-xs text-ink">
-                {selectedModelInfo.name} requires {selectedModelInfo.minWorkgroupStorageSize / 1024} KB of GPU workgroup storage. This device supports only {Math.floor((deviceCapability?.maxComputeWorkgroupStorageSize ?? 0) / 1024)} KB. Choose a smaller model; Qwen 2.5 (0.5B) is the recommended next option. Smaller models may still depend on other browser and GPU capabilities.
+            {providerSettings.backend === 'offline' && (
+              <p className="text-xs text-mute">
+                Instant built-in mode: reads your real schedule, Building 18 exams, tasks (and creates new ones), focus timer, and core CS/math topics with zero download.
               </p>
             )}
 
-            {(modelProgress.status === 'error' || modelProgress.status === 'unsupported' || !gpuSupported) && (
-              <p role="alert" className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-xs text-ink">
-                {!gpuSupported
-                  ? 'WebGPU is unavailable in this browser. Otomo will keep working in offline companion mode.'
-                  : modelProgress.text}
-                {modelProgress.status === 'error' && ' You can retry the model load or continue with offline companion mode.'}
-              </p>
-            )}
+            {providerSettings.backend === 'api' && (
+              <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3 text-xs">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div>
+                    <label className="label block mb-1">Provider</label>
+                    <select
+                      value={providerSettings.api.preset}
+                      onChange={e => {
+                        const preset = e.target.value as ApiProviderConfig['preset']
+                        const info = API_PRESETS[preset]
+                        setApiTestStatus(null)
+                        updateProvider({
+                          api: {
+                            preset,
+                            baseUrl: info.baseUrl,
+                            model: info.defaultModel
+                          }
+                        })
+                      }}
+                      className="h-9 w-full rounded-lg border border-line bg-bg px-2 font-mono text-xs"
+                    >
+                      {Object.entries(API_PRESETS).map(([id, info]) => (
+                        <option key={id} value={id}>{info.label}</option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Progress Bar */}
-            {['checking', 'downloading', 'loading'].includes(modelProgress.status) && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] font-mono text-mute">
-                  <span>{modelProgress.text}</span>
-                  <span>{modelProgress.progress}%</span>
+                  <div>
+                    <label className="label block mb-1">Model</label>
+                    <input
+                      type="text"
+                      value={providerSettings.api.model}
+                      onChange={e => updateProvider({ api: { model: e.target.value } })}
+                      placeholder="e.g. gemini-2.5-flash"
+                      className="h-9 w-full rounded-lg border border-line bg-bg px-2.5 font-mono text-xs focus:border-accent focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label block mb-1">
+                      API Key {API_PRESETS[providerSettings.api.preset].needsKey ? '' : '(Optional)'}
+                    </label>
+                    <input
+                      type="password"
+                      value={providerSettings.api.apiKey}
+                      onChange={e => updateProvider({ api: { apiKey: e.target.value } })}
+                      placeholder={API_PRESETS[providerSettings.api.preset].needsKey ? 'Paste key (stored locally)' : 'Not required'}
+                      className="h-9 w-full rounded-lg border border-line bg-bg px-2.5 font-mono text-xs focus:border-accent focus:outline-none"
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-line overflow-hidden">
-                  <div
-                    className="h-full bg-accent transition-all duration-300"
-                    style={{ width: `${modelProgress.progress}%` }}
-                  />
+
+                {providerSettings.api.preset === 'custom' || providerSettings.api.preset === 'ollama' ? (
+                  <div>
+                    <label className="label block mb-1">Base URL</label>
+                    <input
+                      type="url"
+                      value={providerSettings.api.baseUrl}
+                      onChange={e => updateProvider({ api: { baseUrl: e.target.value } })}
+                      placeholder="http://localhost:11434/v1"
+                      className="h-9 w-full rounded-lg border border-line bg-bg px-2.5 font-mono text-xs focus:border-accent focus:outline-none"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <span className="text-[11px] text-mute">
+                    {API_PRESETS[providerSettings.api.preset].hint}. Stored only on this device.
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="line"
+                    disabled={testingApi}
+                    onClick={handleTestApi}
+                  >
+                    {testingApi ? 'Testing…' : 'Test Connection'}
+                  </Button>
                 </div>
+
+                {apiTestStatus && (
+                  <p role="status" className={`rounded-lg border p-2 text-xs ${apiTestStatus.ok ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-accent/30 bg-accent/10 text-ink'}`}>
+                    {apiTestStatus.message}
+                  </p>
+                )}
               </div>
+            )}
+
+            {providerSettings.backend === 'cpu' && (
+              <div className="space-y-2 rounded-2xl border border-line bg-surface p-3 text-xs">
+                <p className="text-mute">
+                  {CPU_MODEL_NAME} runs locally on your CPU through WebAssembly, so it works without WebGPU. The model downloads once from Hugging Face and is cached by your browser.
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono font-semibold">{CPU_MODEL_NAME}</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="accent"
+                    onClick={handleLoadCpuModel}
+                    disabled={cpuModelReady || modelLoadBusy}
+                  >
+                    <Download size={12} />
+                    {cpuModelReady ? 'CPU Model Ready' : modelLoadBusy ? 'Loading…' : 'Download & Load'}
+                  </Button>
+                </div>
+                {!cpuModelReady && cpuModelError && (
+                  <p role="alert" className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-xs text-ink">
+                    {modelProgress.text}
+                  </p>
+                )}
+                {modelLoadBusy && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between gap-2 text-[11px] font-mono text-mute">
+                      <span className="truncate">{modelProgress.text}</span>
+                      <span>{modelProgress.progress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+                      <div className="h-full bg-accent transition-all duration-300" style={{ width: `${modelProgress.progress}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {providerSettings.backend === 'webgpu' && (
+              <>
+                <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="font-mono font-semibold">WebGPU Model:</span>
+                    <select
+                      value={selectedModel}
+                      onChange={e => setSelectedModel(e.target.value)}
+                      disabled={modelLoadBusy}
+                      className="min-w-0 max-w-full rounded-lg border border-line bg-surface px-2 py-1 font-mono text-xs"
+                    >
+                      {MODEL_CATALOG.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.size})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {!webGpuModelReady && (
+                    <Button
+                      size="sm"
+                      variant="accent"
+                      onClick={handleDownloadModel}
+                      disabled={!gpuSupported || selectedModelIncompatible || modelLoadBusy}
+                    >
+                      <Download size={12} />
+                      {!gpuSupported
+                        ? 'Unavailable'
+                        : modelLoadBusy
+                          ? 'Loading…'
+                          : 'Load Model'}
+                    </Button>
+                  )}
+                </div>
+
+                {selectedModelIncompatible && selectedModelInfo && (
+                  <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-accent/30 bg-accent/5 p-2.5 text-xs text-ink">
+                    <span>
+                      This GPU supports {Math.floor((deviceCapability?.maxComputeWorkgroupStorageSize ?? 0) / 1024)} KB workgroup storage, but every WebGPU model needs at least 32 KB. Keep the model selectable, but it cannot load on this adapter. Use Local CPU (WASM), Cloud / Local API, or Quick Offline instead.
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button size="sm" variant="accent" onClick={() => updateProvider({ backend: 'cpu' })}>
+                        Use CPU Model
+                      </Button>
+                      <Button size="sm" variant="line" onClick={() => updateProvider({ backend: 'api' })}>
+                        Use API
+                      </Button>
+                      <Button size="sm" variant="line" onClick={() => updateProvider({ backend: 'offline' })}>
+                        Quick Offline
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {!webGpuModelReady && (modelProgress.status === 'error' || modelProgress.status === 'unsupported' || !gpuSupported) && (
+                  <p role="alert" className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-xs text-ink">
+                    {!gpuSupported
+                      ? 'WebGPU is unavailable in this browser. Switch to Cloud / Local API or Quick Offline Mode.'
+                      : modelProgress.text}
+                  </p>
+                )}
+
+                {['checking', 'downloading', 'loading'].includes(modelProgress.status) && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-mono text-mute">
+                      <span>{modelProgress.text}</span>
+                      <span>{modelProgress.progress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-line overflow-hidden">
+                      <div
+                        className="h-full bg-accent transition-all duration-300"
+                        style={{ width: `${modelProgress.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </motion.div>
         )}
