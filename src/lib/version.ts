@@ -1,7 +1,7 @@
-export const VERSION = '4.0.0'
+export const VERSION = '4.1.0'
 export const NOTES = [
-  'Update 4: improved search metadata, sitemap, and social previews for easier discovery of Otomo.',
-  'The app checks for new releases more often and offers an in-app update prompt.',
-  'Otomo-chan replies in text only. Microphone input is still available for students who prefer to ask by voice.',
-  'Developer Studio publishing and feedback tools require verified administrator access; feedback attachments are private.'
+  'Fixed and stabilized the Otomo-chan beta experience, including more reliable replies, chat state, and model controls.',
+  'Added a polished Daily Phrase feature with Japanese vocabulary, meaning, mini dialogues, cultural tips, and quick practice challenges.',
+  'Daily practice now includes streak tracking, recent-phrase variety, bonus phrases, and saved progress on this device.',
+  'Improved update discovery and the in-app experience for a smoother, more dependable 4.1.0 release.'
 ]

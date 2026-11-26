@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
+  CalendarDays,
   Check,
   ChevronRight,
+  Copy,
   Eye,
   Flame,
   MessageCircle,
@@ -38,6 +40,17 @@ export function JapanesePractice() {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [meaningRevealed, setMeaningRevealed] = useState(false)
   const [showDialogue, setShowDialogue] = useState(false)
+  const [copiedPhrase, setCopiedPhrase] = useState(false)
+
+  const copyPhrase = async () => {
+    try {
+      await navigator.clipboard.writeText(`${phrase.japanese} — ${phrase.romaji}\n${phrase.english}`)
+      setCopiedPhrase(true)
+      window.setTimeout(() => setCopiedPhrase(false), 1800)
+    } catch {
+      setCopiedPhrase(false)
+    }
+  }
 
   const dailyCompleted = state.lastCompleted === todayKey
 
@@ -94,6 +107,7 @@ export function JapanesePractice() {
     setSelectedIdx(null)
     setMeaningRevealed(false)
     setShowDialogue(false)
+    setCopiedPhrase(false)
   }
 
   const handleBackToDaily = () => {
@@ -102,6 +116,7 @@ export function JapanesePractice() {
     setSelectedIdx(null)
     setMeaningRevealed(dailyCompleted)
     setShowDialogue(false)
+    setCopiedPhrase(false)
   }
 
   const answeredCorrectly = selectedIdx !== null && isChoiceCorrect(selectedIdx)
@@ -166,14 +181,17 @@ export function JapanesePractice() {
               <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="seal !h-6 !w-6 !text-xs">日</span>
-                    <h2 id="daily-jp-heading" className="font-display text-lg font-semibold italic leading-none">
-                      {isBonus ? 'Bonus Phrase' : "Today's Japanese"}
-                    </h2>
+                    <span className="seal !h-7 !w-7 !text-sm">日</span>
+                    <div>
+                      <h2 id="daily-jp-heading" className="font-display text-xl font-semibold italic leading-none">
+                        {isBonus ? 'Bonus Phrase' : 'A phrase for today'}
+                      </h2>
+                      <p className="mt-1 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-mute">
+                        <CalendarDays size={10} />
+                        {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </p>
+                    </div>
                   </div>
-                  <p className="jp mt-1 text-[11px] text-mute">
-                    今日のひとこと · {CATEGORY_LABELS[phrase.category]} · {phrase.difficulty}
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -207,8 +225,22 @@ export function JapanesePractice() {
                 </div>
 
                 {/* Phrase Showcase */}
-                <div className="rounded-2xl border border-line bg-bg p-4">
-                  <p className="jp text-2xl font-semibold leading-snug text-ink" lang="ja">
+                <div className="relative overflow-hidden rounded-2xl border border-line bg-[radial-gradient(circle_at_100%_0%,color-mix(in_srgb,var(--accent)_12%,transparent),transparent_40%),var(--bg)] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-mute">
+                      {CATEGORY_LABELS[phrase.category]} · {phrase.difficulty}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={copyPhrase}
+                      aria-label="Copy phrase"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 text-[10px] text-mute transition-colors hover:border-accent/50 hover:text-accent"
+                    >
+                      {copiedPhrase ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedPhrase ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="jp text-[2rem] font-semibold leading-tight text-ink" lang="ja">
                     {phrase.japanese}
                   </p>
                   {phrase.kana !== phrase.japanese && (
@@ -310,33 +342,45 @@ export function JapanesePractice() {
                   </button>
 
                   {showDialogue && (
-                    <div className="space-y-2.5 rounded-2xl border border-line bg-bg/60 p-3 text-xs">
-                      <div className="space-y-2">
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-3 rounded-2xl border border-line bg-bg/60 p-3 text-xs"
+                    >
+                      <div className="space-y-2.5">
                         {phrase.dialogue.map((line, i) => (
-                          <div key={i} className="space-y-0.5">
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-accent">
-                              {line.speaker}
-                            </span>
-                            <p className="jp text-sm text-ink" lang="ja">{line.jp}</p>
-                            <p className="font-mono text-[10px] text-mute">{line.romaji}</p>
-                            <p className="text-mute">{line.en}</p>
-                          </div>
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, x: i % 2 ? 8 : -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.08 }}
+                            className={`flex ${i % 2 ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`max-w-[88%] rounded-2xl px-3 py-2.5 ${i % 2 ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md border border-line bg-surface text-ink'}`}>
+                              <p className={`mb-1 font-mono text-[9px] uppercase tracking-wider ${i % 2 ? 'text-white/70' : 'text-accent'}`}>
+                                {line.speaker}
+                              </p>
+                              <p className="jp text-sm font-semibold" lang="ja">{line.jp}</p>
+                              <p className={`mt-1 font-mono text-[9px] ${i % 2 ? 'text-white/70' : 'text-mute'}`}>{line.romaji}</p>
+                              <p className={`mt-1 text-[11px] ${i % 2 ? 'text-white/90' : 'text-mute'}`}>{line.en}</p>
+                            </div>
+                          </motion.div>
                         ))}
                       </div>
 
-                      <div className="border-t border-line pt-2 text-[11px] leading-relaxed text-mute">
-                        <span className="font-semibold text-ink">Tip: </span>
+                      <div className="rounded-xl border border-accent/15 bg-accent/5 px-3 py-2.5 text-[11px] leading-relaxed text-mute">
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-accent">Otomo tip · </span>
                         {phrase.tip}
                       </div>
 
                       {phrase.variation && (
-                        <div className="rounded-xl border border-line bg-surface px-2.5 py-2 text-[11px]">
-                          <span className="font-mono text-[10px] uppercase text-mute">{phrase.variation.label}: </span>
+                        <div className="rounded-xl border border-line bg-surface px-3 py-2.5 text-[11px]">
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-mute">{phrase.variation.label}: </span>
                           <span className="jp font-medium text-ink" lang="ja">{phrase.variation.jp}</span>{' '}
                           <span className="font-mono text-mute">({phrase.variation.romaji})</span>
                         </div>
                       )}
-                    </div>
+                    </motion.div>
                   )}
                 </div>
               </div>
