@@ -41,6 +41,7 @@ import {
   getModelStatus,
   getLoadedModel,
   isCpuModelLoaded,
+  isCpuModelCached,
   cancelInference,
   MODEL_CATALOG,
   CPU_MODEL_NAME,
@@ -99,6 +100,7 @@ export function Companion() {
   const [apiTestStatus, setApiTestStatus] = useState<{ ok: boolean; message: string } | null>(null)
   const [testingApi, setTestingApi] = useState(false)
   const [modelProgress, setModelProgress] = useState<ModelProgress>(getModelStatus())
+  const [cpuModelCached, setCpuModelCached] = useState<boolean | null>(null)
   const [selectedModel, setSelectedModel] = useState('Qwen2.5-0.5B-Instruct-q4f16_1-MLC')
   const [showModelBar, setShowModelBar] = useState(false)
   const [deviceCapability, setDeviceCapability] = useState<Awaited<ReturnType<typeof checkDeviceCapability>> | null>(null)
@@ -159,6 +161,19 @@ export function Companion() {
       cancelInference()
     }
   }, [owner])
+
+  useEffect(() => {
+    let active = true
+    void isCpuModelCached().then(cached => {
+      if (active) setCpuModelCached(cached)
+    }).catch(error => {
+      if (active) {
+        setCpuModelCached(false)
+        setUiNotice(`Could not check the saved CPU model: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+    return () => { active = false }
+  }, [modelProgress.status])
 
   // 2. Load Messages when Active Conversation Changes
   useEffect(() => {
@@ -610,8 +625,18 @@ export function Companion() {
             {providerSettings.backend === 'cpu' && (
               <div className="space-y-2 rounded-2xl border border-line bg-surface p-3 text-xs">
                 <p className="text-mute">
-                  {CPU_MODEL_NAME} runs locally on your CPU through WebAssembly, so it works without WebGPU. The model downloads once from Hugging Face and is cached by your browser.
+                  {CPU_MODEL_NAME} runs locally on your CPU through WebAssembly. Its quantized model is about 390 MB and is cached by your browser after downloading.
                 </p>
+                {cpuModelCached && (
+                  <p role="status" className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-2.5 py-2 text-[11px] text-emerald-700 dark:text-emerald-300">
+                    Model weights are saved in this browser. You can load them again without downloading.
+                  </p>
+                )}
+                {cpuModelCached === false && (
+                  <p role="status" className="text-[11px] text-mute">
+                    Model weights are not in this browser's cache yet.
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-mono font-semibold">{CPU_MODEL_NAME}</span>
                   <Button
@@ -622,7 +647,7 @@ export function Companion() {
                     disabled={cpuModelReady || modelLoadBusy}
                   >
                     <Download size={12} />
-                    {cpuModelReady ? 'CPU Model Ready' : modelLoadBusy ? 'Loading…' : 'Download & Load'}
+                    {cpuModelReady ? 'CPU Model Ready' : modelLoadBusy ? 'Loading…' : cpuModelCached ? 'Load from Cache' : 'Download & Load'}
                   </Button>
                 </div>
                 {!cpuModelReady && cpuModelError && (

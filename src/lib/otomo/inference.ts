@@ -49,8 +49,15 @@ export interface ApiProviderConfig {
 
 export type ActiveBackend = 'offline' | 'api' | 'webgpu' | 'cpu'
 
-export const CPU_MODEL_ID = 'onnx-community/Qwen3-0.6B-ONNX'
-export const CPU_MODEL_NAME = 'Qwen3 0.6B (CPU / WASM)'
+export const CPU_MODEL_ID = 'onnx-community/SmolLM2-360M-Instruct-ONNX'
+export const CPU_MODEL_NAME = 'SmolLM2 360M (CPU / WASM)'
+
+export async function isCpuModelCached(): Promise<boolean> {
+  if (typeof caches === 'undefined') return false
+  const cache = await caches.open('transformers-cache')
+  const modelUrl = `https://huggingface.co/${CPU_MODEL_ID}/resolve/main/onnx/model_q4.onnx`
+  return Boolean(await cache.match(modelUrl))
+}
 
 export const API_PRESETS: Record<ApiProviderConfig['preset'], { label: string; baseUrl: string; defaultModel: string; needsKey: boolean; hint: string }> = {
   gemini: {
@@ -441,6 +448,11 @@ async function loadCpuModelInternal(): Promise<boolean> {
   try {
     updateStatus({ status: 'checking', progress: 0, text: 'Preparing the local CPU model...' })
 
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+    if (deviceMemory !== undefined && deviceMemory <= 2) {
+      throw new Error('This device reports 2 GB RAM or less. The local model may crash the browser; use Quick Offline or an API backend instead.')
+    }
+
     if (engine) await unloadModel()
 
     const [{ env, pipeline }, { onnxWasmPaths }] = await Promise.all([
@@ -450,8 +462,26 @@ async function loadCpuModelInternal(): Promise<boolean> {
     const wasmConfig = env.backends.onnx.wasm
     if (!wasmConfig) throw new Error('The ONNX Runtime WebAssembly backend is unavailable.')
     wasmConfig.wasmPaths = onnxWasmPaths
+    wasmConfig.numThreads = 1
     // Keep the runtime module as a same-origin URL; this app's CSP disallows blob scripts.
     env.useWasmCache = false
+    env.useBrowserCache = true
+    try {
+      const persistentStorage = await navigator.storage?.persist()
+      if (persistentStorage === false) {
+        updateStatus({
+          status: 'checking',
+          progress: 0,
+          text: 'Preparing the model. Browser storage may clear the downloaded files when space is low.'
+        })
+      }
+    } catch (error) {
+      updateStatus({
+        status: 'checking',
+        progress: 0,
+        text: `Browser storage could not be marked persistent: ${error instanceof Error ? error.message : 'Unknown error'}`
+      })
+    }
     cpuEngine = await pipeline('text-generation', CPU_MODEL_ID, {
       device: 'wasm',
       dtype: 'q4',
