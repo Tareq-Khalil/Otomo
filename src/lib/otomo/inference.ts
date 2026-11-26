@@ -450,6 +450,8 @@ async function loadCpuModelInternal(): Promise<boolean> {
     const wasmConfig = env.backends.onnx.wasm
     if (!wasmConfig) throw new Error('The ONNX Runtime WebAssembly backend is unavailable.')
     wasmConfig.wasmPaths = onnxWasmPaths
+    // Keep the runtime module as a same-origin URL; this app's CSP disallows blob scripts.
+    env.useWasmCache = false
     cpuEngine = await pipeline('text-generation', CPU_MODEL_ID, {
       device: 'wasm',
       dtype: 'q4',
